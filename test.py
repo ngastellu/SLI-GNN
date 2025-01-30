@@ -47,6 +47,8 @@ def main():
     print(f'************** is_db = {is_db} **************')
     dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=model_args.max_num_nbr, radius=model_args.radius,
                         properties_list=properties_list, step=model_args.step,is_db=is_db)
+    
+    my_atom_ref = None
 
     test_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers)
 
@@ -85,7 +87,7 @@ def main():
         else:
             sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
 
-        normalizer = Normalizer(torch.tensor(sample_target))
+        normalizer = Normalizer(torch.tensor(sample_target),atom_ref=my_atom_ref)
 
     # optionally resume from a checkpoint
     if os.path.isfile(model_path):
