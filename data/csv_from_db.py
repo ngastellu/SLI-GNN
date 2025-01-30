@@ -14,4 +14,4 @@ out_csv = f'dataset/targets/{db_name}-targets.csv'
 with open(out_csv,'w',newline='') as csvfile:
     kerouac = csv.writer(csvfile)
     for row in db.select():
-        kerouac.writerow([row.id, row.id])
+        kerouac.writerow([row.id, row.data['HOMO']])
