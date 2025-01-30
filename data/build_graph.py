@@ -9,31 +9,34 @@ from torch.utils.data import Dataset
 from mendeleev import element
 from pymatgen.core.structure import Structure, IMolecule
 from pymatgen.core.periodic_table import Element
+from pymatgen.io.ase import AseAtomsAdaptor
+from ase.db import connect
 from torch_geometric.data import Data
 from utils.utils import *
 
 class DataReader:
 
-    def __init__(self, path, targets_filename, random_seed=123):
+    def __init__(self, path, targets_filename, random_seed=123,is_db=False):
         self.path = path
-        assert os.path.exists(path), 'path does not exist!'
+        assert os.path.exists(path), f'path {path} does not exist!'
         id_prop_file = os.path.join(targets_filename)
-        print(f'***************** NICO: {targets_filename} *********************')
 
         assert os.path.exists(id_prop_file), targets_filename+' does not exist!'
         with open(id_prop_file) as f:
             reader = csv.reader(f)
             self.id_prop_data = [row for row in reader]
         
-        print(f'***************** NICO *********************')
-        print(self.id_prop_data)
         material_id, _ = self.id_prop_data[0]
         self.suffix = None
-        for suffix in ['.cif', '.xyz', '.mol', '.pdb', '.sdf']:
-            if os.path.exists(os.path.join(self.path, material_id + suffix)):
-                self.suffix = suffix
-                break
-        assert self.suffix is not None, 'file format does not support!'
+        if is_db:
+            self.suffix = '.db'
+            self.db = connect(path)
+        else:
+            for suffix in ['.cif', '.xyz', '.mol', '.pdb', '.sdf']:
+                if os.path.exists(os.path.join(self.path, material_id + suffix)):
+                    self.suffix = suffix
+                    break
+            assert self.suffix is not None, 'file format does not support!'
         random.seed(random_seed)
         random.shuffle(self.id_prop_data)
 
@@ -45,6 +48,8 @@ class DataReader:
             structure = Structure.from_file(os.path.join(self.path, material_id + self.suffix))
         elif self.suffix == '.mol' or self.suffix == '.xyz' or self.suffix == '.pdb' or self.suffix == '.sdf':
             structure = IMolecule.from_file(os.path.join(self.path, material_id + self.suffix))
+        elif self.suffix == '.db':
+            structure = AseAtomsAdaptor.get_molecule(self.db.get_atoms(id=material_id)) # in the db case, `material_id` is the `id` column of the db
         return structure
 
 
@@ -176,8 +181,8 @@ class AtomBondFactory(object):
 class GraphData(Dataset):
 
     def __init__(self, path, targets_filename, max_num_nbr=12, radius=5, dmin=0, step=0.1,
-                 random_seed=123, properties_list=None):
-        self.data_reader = DataReader(path=path, targets_filename=targets_filename, random_seed=random_seed)
+                 random_seed=123, properties_list=None,is_db=False):
+        self.data_reader = DataReader(path=path, targets_filename=targets_filename, random_seed=random_seed,is_db=is_db)
         self.atom_bond_factory = AtomBondFactory(radius, self.data_reader.suffix)
         self.atom_feature_encoder = AtomFeatureEncoder(properties_list=properties_list)
         self.bond_feature_encoder = BondFeatureEncoder(max_num_nbr=max_num_nbr,
