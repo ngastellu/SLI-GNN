@@ -32,6 +32,7 @@ class DataReader:
             self.suffix = '.db'
             self.db = connect(path)
         else:
+            print(material_id)
             for suffix in ['.cif', '.xyz', '.mol', '.pdb', '.sdf']:
                 if os.path.exists(os.path.join(self.path, material_id + suffix)):
                     self.suffix = suffix
@@ -128,7 +129,8 @@ class BondFeatureEncoder(object):
         for distances in nbr_fea:
             data = pd.cut(distances, self.filter, labels=False, include_lowest=True)
             disperse_nbr_fea.append(data)
-        disperse_nbr_fea = torch.LongTensor(disperse_nbr_fea)
+        # print('****** YEEEEEEHAWWWWWWW *******************************\n',disperse_nbr_fea)
+        disperse_nbr_fea = torch.LongTensor(np.array(disperse_nbr_fea))
         return disperse_nbr_fea.view(-1, )
 
     def format_edges_idx(self, edges_idx):
@@ -171,7 +173,7 @@ class AtomBondFactory(object):
         all_nbrs = []
         if self.suffix == '.cif':
             all_nbrs = structure.get_all_neighbors(self.radius, include_index=True)
-        elif self.suffix == '.mol' or self.suffix == '.xyz' or self.suffix == '.pdb' or self.suffix == '.sdf':
+        elif self.suffix == '.mol' or self.suffix == '.xyz' or self.suffix == '.pdb' or self.suffix == '.sdf' or self.suffix == '.db':
             for atom in structure:
                 nbrs = structure.get_neighbors(atom, self.radius)
                 all_nbrs.append(nbrs)

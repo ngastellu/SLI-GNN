@@ -40,9 +40,11 @@ def main():
 
     # load data
     path = "/Users/nico/Desktop/scripts/OPVGCN/data/train.db"
+    # path = 'data/dataset/'
     targets_filename = "data/dataset/targets/" + args.filename + ".csv"
     properties_list = model_args.properties[0]
     is_db = path.split('.')[-1] == 'db'
+    print(f'************** is_db = {is_db} **************')
     dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=model_args.max_num_nbr, radius=model_args.radius,
                         properties_list=properties_list, step=model_args.step,is_db=is_db)
 
