@@ -1,0 +1,1 @@
+--atom-fea-len 128 --nbr-fea-len 64 --h-fea-len 256 --n-conv 7 --l1 0 --l2 3 --pooling 'max' --lr 0.0001 --batch-size 32 --molecular-property 'LUMO'

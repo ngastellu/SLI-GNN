@@ -41,69 +41,75 @@ def main():
     # load data
     path = "/Users/nico/Desktop/scripts/OPVGCN/data/train.db"
     # path = 'data/dataset/'
-    targets_filename = "data/dataset/targets/" + args.filename + ".csv"
-    properties_list = model_args.properties[0]
-    is_db = path.split('.')[-1] == 'db'
-    print(f'************** is_db = {is_db} **************')
-    dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=model_args.max_num_nbr, radius=model_args.radius,
-                        properties_list=properties_list, step=model_args.step,is_db=is_db)
     
-    my_atom_ref = None
+    molprops = ['HOMO', 'LUMO', 'ET1', 'DH', 'DL']
+    for mp in molprops:
 
-    test_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers)
+        print(f'\n\n~~~~~~~~ Reading from {path} ~~~~~~~~')
+        targets_filename = f"data/dataset/targets/train_{mp}-targets.csv"
+        print(f'** Target CSV =  {targets_filename} **')
+        properties_list = model_args.properties[0]
+        is_db = path.split('.')[-1] == 'db'
+        print(f'************** is_db = {is_db} **************')
+        dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=model_args.max_num_nbr, radius=model_args.radius,
+                            properties_list=properties_list, step=model_args.step,is_db=is_db)
+        
+        my_atom_ref = None
 
-    # build model
-    orig_bond_fea_len = dataset.bond_feature_encoder.num_category
+        test_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers)
 
-    model = Net(orig_bond_fea_len=orig_bond_fea_len,
-                atom_fea_len=model_args.atom_fea_len,
-                nbr_fea_len=model_args.nbr_fea_len,
-                n_conv=model_args.n_conv,
-                h_fea_len=model_args.h_fea_len,
-                l1=model_args.l1, l2=model_args.l2,
-                classification=True if model_args.task == 'classification' else False,
-                n_classes=model_args.n_classes,
-                attention=model_args.attention,
-                dynamic_attention=model_args.dynamic_attention,
-                n_heads=model_args.n_heads,
-                max_num_nbr=model_args.max_num_nbr,
-                pooling=model_args.pooling,
-                p=model_args.dropout_p,
-                properties_list=properties_list)
-    model.to(device)
+        # build model
+        orig_bond_fea_len = dataset.bond_feature_encoder.num_category
 
-    # define loss func and optimizer
-    if model_args.task == 'classification':
-        criterion = nn.CrossEntropyLoss()
-    else:
-        criterion = nn.MSELoss()
+        model = Net(orig_bond_fea_len=orig_bond_fea_len,
+                    atom_fea_len=model_args.atom_fea_len,
+                    nbr_fea_len=model_args.nbr_fea_len,
+                    n_conv=model_args.n_conv,
+                    h_fea_len=model_args.h_fea_len,
+                    l1=model_args.l1, l2=model_args.l2,
+                    classification=True if model_args.task == 'classification' else False,
+                    n_classes=model_args.n_classes,
+                    attention=model_args.attention,
+                    dynamic_attention=model_args.dynamic_attention,
+                    n_heads=model_args.n_heads,
+                    max_num_nbr=model_args.max_num_nbr,
+                    pooling=model_args.pooling,
+                    p=model_args.dropout_p,
+                    properties_list=properties_list)
+        model.to(device)
 
-    if model_args.task == 'classification':
-        normalizer = Normalizer(torch.zeros(2))
-        normalizer.load_state_dict({'mean': 0., 'std': 1.})
-    else:
-        if len(dataset) < 500:
-            sample_target = [dataset[i].y for i in range(len(dataset))]
+        # define loss func and optimizer
+        if model_args.task == 'classification':
+            criterion = nn.CrossEntropyLoss()
         else:
-            sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
+            criterion = nn.MSELoss()
 
-        normalizer = Normalizer(torch.tensor(sample_target),atom_ref=my_atom_ref)
+        if model_args.task == 'classification':
+            normalizer = Normalizer(torch.zeros(2))
+            normalizer.load_state_dict({'mean': 0., 'std': 1.})
+        else:
+            if len(dataset) < 500:
+                sample_target = [dataset[i].y for i in range(len(dataset))]
+            else:
+                sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
 
-    # optionally resume from a checkpoint
-    if os.path.isfile(model_path):
-        logger.info("=> loading model '{}'".format(model_path))
-        checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
-        model.load_state_dict(checkpoint['state_dict'])
-        normalizer.load_state_dict(checkpoint['normalizer'])
-        logger.info("=> loaded model '{}' (epoch {}, validation {})"
-              .format(model_path, checkpoint['epoch'],
-                      checkpoint['best_loss']))
-    else:
-        logger.info("=> no model found at '{}'".format(model_path))
-    test(test_loader, model, criterion, normalizer)
+            normalizer = Normalizer(torch.tensor(sample_target),atom_ref=my_atom_ref)
+
+        # optionally resume from a checkpoint
+        if os.path.isfile(model_path):
+            logger.info("=> loading model '{}'".format(model_path))
+            checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
+            model.load_state_dict(checkpoint['state_dict'])
+            normalizer.load_state_dict(checkpoint['normalizer'])
+            logger.info("=> loaded model '{}' (epoch {}, validation {})"
+                .format(model_path, checkpoint['epoch'],
+                        checkpoint['best_loss']))
+        else:
+            logger.info("=> no model found at '{}'".format(model_path))
+        test(test_loader, model, criterion, normalizer,mp)
 
 
-def test(test_loader, model, criterion, normalizer):
+def test(test_loader, model, criterion, normalizer,molprop):
     test_material_ids = []
     test_targets = []
     test_preds = []
@@ -165,14 +171,14 @@ def test(test_loader, model, criterion, normalizer):
                         batch_idx + 1, running_loss.avg, accuracies.avg))
 
     if model_args.task == 'regression':
-        with open('results/regression/test_results.csv', 'w') as f:
+        with open(f'results/regression/test_{molprop}_results.csv', 'w') as f:
             writer = csv.writer(f)
             for material_id, pred, target in zip(test_material_ids, test_preds, test_targets):
                 writer.writerow((material_id, round(pred, 2), target))
 
         df = pd.read_csv('results/regression/test_results.csv',
-                         header=None,
-                         names=['material_id', 'Prediction', 'Target'])
+                        header=None,
+                        names=['material_id', 'Prediction', 'Target'])
         df.to_csv('results/regression/test_results.csv', index=False)
     else:
         with open('results/classification/test_results.csv', 'w') as f:
@@ -181,8 +187,8 @@ def test(test_loader, model, criterion, normalizer):
                 writer.writerow((material_id, round(pred, 2), target, probability))
 
         df = pd.read_csv('results/classification/test_results.csv',
-                         header=None,
-                         names=['material_id', 'Prediction', 'Target', 'Probabilities'])
+                        header=None,
+                        names=['material_id', 'Prediction', 'Target', 'Probabilities'])
         df.to_csv('results/classification/test_results.csv', index=False)
 
     return running_loss.avg
