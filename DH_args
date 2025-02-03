@@ -1,0 +1,1 @@
+--atom-fea-len 128 --nbr-fea-len 256 --h-fea-len 32 --n-conv 3 --l1 1 --l2 4 --pooling 'add' --lr 0.006353 --batch-size 32 --molecular-property 'DH'

@@ -7,99 +7,139 @@ from data.build_graph import *
 from models.model import Net
 import warnings
 from utils.logger import logger
+import shlex
+import os
 warnings.filterwarnings("ignore", category=Warning)
 
-parser = argparse.ArgumentParser(description='SLI-GNN')
-parser.add_argument('data_src', metavar='PATH', help='data source: data/dataset/data_src')
-parser.add_argument('filename', metavar='F', help='csv filename(dataset/targets/filename.csv)')
-parser.add_argument('--task', choices=['regression', 'classification'],
-                    default='regression',
-                    help='complete a regression or ''classification task (default: regression)')
-parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
-                    help='number of data loading workers (default: 0)')
-parser.add_argument('--epochs', default=100, type=int, metavar='N',
-                    help='number of total epochs to run (default: 10)')
-parser.add_argument('--pooling', choices=['mean', 'max', 'add'],
-                    default='mean', help='global pooling layer (default: mean)')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
-                    metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
-                    metavar='LR', help='initial learning rate (default: ''0.01)')
-parser.add_argument('--lr-milestones', default=[100], nargs='+', type=int,
-                    metavar='N', help='milestones for scheduler (default: ''[100])')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=0, type=float,
-                    metavar='W', help='weight decay (default: 0)')
-parser.add_argument('--print-space', '-p', default=1, type=int,
-                    metavar='N', help='print space (default: 1)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-train_group = parser.add_mutually_exclusive_group()
-train_group.add_argument('--train-ratio', default=0.6, type=float, metavar='N',
-                         help='number of training data to be loaded (default 0.6)')
-train_group.add_argument('--train-size', default=None, type=int, metavar='N',
-                         help='number of training data to be loaded (default none)')
-valid_group = parser.add_mutually_exclusive_group()
-valid_group.add_argument('--valid-ratio', default=0.2, type=float, metavar='N',
-                         help='percentage of validation data to be loaded (default '
-                              '0.2)')
-valid_group.add_argument('--valid-size', default=None, type=int, metavar='N',
-                         help='number of validation data to be loaded (default '
-                              '1000)')
-test_group = parser.add_mutually_exclusive_group()
-test_group.add_argument('--test-ratio', default=0.2, type=float, metavar='N',
-                        help='percentage of test data to be loaded (default 0.2)')
-test_group.add_argument('--test-size', default=None, type=int, metavar='N',
-                        help='number of test data to be loaded (default 1000)')
-parser.add_argument('--atom-fea-len', default=256, type=int, metavar='N',
-                    help='number of hidden atom features in conv layers')
-parser.add_argument('--h-fea-len', default=128, type=int, metavar='N',
-                    help='number of hidden features after pooling')
-parser.add_argument('--nbr-fea-len', default=128, type=int, metavar='N',
-                    help='number of bond features')
-parser.add_argument('--n-conv', default=3, type=int, metavar='N',
-                    help='number of conv layers')
-parser.add_argument('--l1', default=1, type=int, metavar='N',
-                    help='number of hidden layers before pooling')
-parser.add_argument('--l2', default=1, type=int, metavar='N',
-                    help='number of hidden layers after pooling')
-parser.add_argument('--n-classes', default=2, type=int, metavar='N',
-                    help='number of classes')
-parser.add_argument('--patience', default=7, type=int, metavar='N',
-                    help='How long to wait after last time validation loss improved.(default=7)')
-attention_group = parser.add_mutually_exclusive_group()
-attention_group.add_argument('--attention', '-GAT', action='store_true',
-                             help='Attention or not.(default: False)')
-attention_group.add_argument('--dynamic-attention', '-DA', action='store_true',
-                             help='Dynamic attention or not.(default: False)')
-parser.add_argument('--n-heads', default=1, type=int, metavar='N',
-                    help='Number of multi-head-attentions.(default=1, useful on attention mechanism)')
-parser.add_argument('--dropout-p', '-d', default=0, type=float, metavar='N',
-                    help='dropout - p.(default=0)')
-parser.add_argument('--early-stopping', '-es', action='store_true',
-                    help='if early stopping or not (default: False)')
-parser.add_argument('--transfer', action='store_true', help='default: False')
 
-parser.add_argument('--max-num-nbr', default=12, type=int, metavar='N',
-                    help='max number of neighbors')
-parser.add_argument('--radius', '-r', default=5, type=int, metavar='N', help='Radius of sphere')
-parser.add_argument('--step', default=0.1, type=int, metavar='N', help='distance step')
+def my_parser():
 
-parser.add_argument('--properties', choices=['N', 'G', 'P', 'NV', 'E', 'R', 'V', 'EA', 'I'],
-                    nargs='*', action='append', default=[['N']],
-                    help='properties list initializing atom features (default: Only atom number)')
+    parser = argparse.ArgumentParser(description='SLI-GNN')
 
-args = parser.parse_args(sys.argv[1:])
-best_loss = 1e10
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # Add an argument for specifying a file with arguments
+    parser.add_argument("--arg-file", type=argparse.FileType('r'), help="File containing command-line arguments")
+
+    # Rest of the arguments (will be read from args file specified above)
+    # parser.add_argument('data_src', metavar='PATH', help='data source: data/dataset/data_src')
+    # parser.add_argument('filename', metavar='F', help='csv filename(dataset/targets/filename.csv)')
+    parser.add_argument('--task', choices=['regression', 'classification'],
+                        default='regression',
+                        help='complete a regression or ''classification task (default: regression)')
+    parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
+                        help='number of data loading workers (default: 0)')
+    parser.add_argument('--epochs', default=100, type=int, metavar='N',
+                        help='number of total epochs to run (default: 10)')
+    parser.add_argument('--pooling', choices=['mean', 'max', 'add'],
+                        default='mean', help='global pooling layer (default: mean)')
+    parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+                        help='manual epoch number (useful on restarts)')
+    parser.add_argument('-b', '--batch-size', default=256, type=int,
+                        metavar='N', help='mini-batch size (default: 256)')
+    parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+                        metavar='LR', help='initial learning rate (default: ''0.01)')
+    parser.add_argument('--lr-milestones', default=[100], nargs='+', type=int,
+                        metavar='N', help='milestones for scheduler (default: ''[100])')
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+    parser.add_argument('--weight-decay', '--wd', default=0, type=float,
+                        metavar='W', help='weight decay (default: 0)')
+    parser.add_argument('--print-space', '-p', default=1, type=int,
+                        metavar='N', help='print space (default: 1)')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
+    train_group = parser.add_mutually_exclusive_group()
+    train_group.add_argument('--train-ratio', default=0.6, type=float, metavar='N',
+                            help='number of training data to be loaded (default 0.6)')
+    train_group.add_argument('--train-size', default=None, type=int, metavar='N',
+                            help='number of training data to be loaded (default none)')
+    valid_group = parser.add_mutually_exclusive_group()
+    valid_group.add_argument('--valid-ratio', default=0.2, type=float, metavar='N',
+                            help='percentage of validation data to be loaded (default '
+                                '0.2)')
+    valid_group.add_argument('--valid-size', default=None, type=int, metavar='N',
+                            help='number of validation data to be loaded (default '
+                                '1000)')
+    test_group = parser.add_mutually_exclusive_group()
+    test_group.add_argument('--test-ratio', default=0.2, type=float, metavar='N',
+                            help='percentage of test data to be loaded (default 0.2)')
+    test_group.add_argument('--test-size', default=None, type=int, metavar='N',
+                            help='number of test data to be loaded (default 1000)')
+    parser.add_argument('--atom-fea-len', default=256, type=int, metavar='N',
+                        help='number of hidden atom features in conv layers')
+    parser.add_argument('--h-fea-len', default=128, type=int, metavar='N',
+                        help='number of hidden features after pooling')
+    parser.add_argument('--nbr-fea-len', default=128, type=int, metavar='N',
+                        help='number of bond features')
+    parser.add_argument('--n-conv', default=3, type=int, metavar='N',
+                        help='number of conv layers')
+    parser.add_argument('--l1', default=1, type=int, metavar='N',
+                        help='number of hidden layers before pooling')
+    parser.add_argument('--l2', default=1, type=int, metavar='N',
+                        help='number of hidden layers after pooling')
+    parser.add_argument('--n-classes', default=2, type=int, metavar='N',
+                        help='number of classes')
+    parser.add_argument('--patience', default=7, type=int, metavar='N',
+                        help='How long to wait after last time validation loss improved.(default=7)')
+    attention_group = parser.add_mutually_exclusive_group()
+    attention_group.add_argument('--attention', '-GAT', action='store_true',
+                                help='Attention or not.(default: False)')
+    attention_group.add_argument('--dynamic-attention', '-DA', action='store_true',
+                                help='Dynamic attention or not.(default: False)')
+    parser.add_argument('--n-heads', default=1, type=int, metavar='N',
+                        help='Number of multi-head-attentions.(default=1, useful on attention mechanism)')
+    parser.add_argument('--dropout-p', '-d', default=0, type=float, metavar='N',
+                        help='dropout - p.(default=0)')
+    parser.add_argument('--early-stopping', '-es', action='store_true',
+                        help='if early stopping or not (default: False)')
+    parser.add_argument('--transfer', action='store_true', help='default: False')
+
+    parser.add_argument('--max-num-nbr', default=12, type=int, metavar='N',
+                        help='max number of neighbors')
+    parser.add_argument('--radius', '-r', default=5, type=int, metavar='N', help='Radius of sphere')
+    parser.add_argument('--step', default=0.1, type=int, metavar='N', help='distance step')
+
+    parser.add_argument('--properties', choices=['N', 'G', 'P', 'NV', 'E', 'R', 'V', 'EA', 'I'],
+                        nargs='*', action='append', default=[['N']],
+                        help='properties list initializing atom features (default: Only atom number)')
+    
+    parser.add_argument('--molecular-property', default=None, help='Target property of this model. Should match whatever precedes the underscore in the arg file name.')
+
+    # args = parser.parse_args(sys.argv[1:])
+    args0 = parser.parse_args()
+
+    # If an argument file is provided, read its contents
+    if args0.arg_file:
+        file_args = shlex.split(args0.arg_file.read())  # Parse arguments correctly
+        args0.arg_file.close()
+
+        # Parse again with the file arguments included
+        args = parser.parse_args(file_args)
+    
+        # args.arg_file = args0.arg_file # add arg_file argument to the list of newly parsed args
+
+    print('- - - - - - - - - - PRINTING ARGS - - - - - - - - - - ')
+
+    for arg in vars(args):
+        print(f'{arg}:   {getattr(args,arg)}')
+    
+    return args
 
 
-def main():
-    global args, best_loss
-    path = "data/dataset/" + args.data_src
-    targets_filename = "data/dataset/targets/" + args.filename + ".csv"
+
+
+
+def main(args,best_loss):
+    # global args, best_loss
+    # path = "data/dataset/" + args.data_src
+    # targets_filename = "data/dataset/targets/" + args.filename + ".csv"
+    # molprop = 'HOMO'
+    path = "/Users/nico/Desktop/scripts/OPVGCN/data/train.db" 
+    is_db = path.split('.')[-1] == 'db' # check if reading input data from database
+
+    print(args.arg_file)
+    molprop = args.molecular_property
+    # molprop = os.path.basename(args.arg_file).split('_')[0]
+
+    targets_filename = f"data/dataset/targets/train_{molprop}-targets.csv"
 
     logger.info('dataset path = {}'.format(path))
     logger.info('neighbor search radius = {}'.format(args.radius))
@@ -107,7 +147,7 @@ def main():
 
     properties_list = args.properties[0]
     dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=args.max_num_nbr, radius=args.radius,
-                        properties_list=properties_list, step=args.step)
+                        properties_list=properties_list, step=args.step,is_db=is_db)
 
     logger.info('dataset prepared, total {} materials'.format(len(dataset)))
     logger.info('start split dataset by {}:{}:{}'.format(args.train_ratio * 10,
@@ -210,7 +250,7 @@ def main():
             'optimizer': optimizer.state_dict(),
             'normalizer': normalizer.state_dict(),
             'args': vars(args),
-        }, is_best, transfer=transfer)
+        }, is_best, transfer=transfer,filename=f'{molprop}_checkpoint.pth.tar')
         transfer = False
 
         if args.early_stopping:
@@ -397,4 +437,7 @@ def test(test_loader, model, criterion, normalizer, path="test"):
 
 if __name__ == '__main__':
     logger.info('-------------------starting task---------------------')
-    main()
+    best_loss = 1e10
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    args = my_parser()
+    main(args,best_loss)
