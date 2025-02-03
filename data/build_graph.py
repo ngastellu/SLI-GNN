@@ -194,10 +194,10 @@ class GraphData(Dataset):
         return len(self.data_reader.id_prop_data)
 
     def __getitem__(self, idx):
-        # material_id, target = self.data_reader.id_prop_data[idx]
-        prop_data = self.data_reader.id_prop_data[idx]
-        material_id = prop_data[0]
-        target = prop_data[1:]
+        material_id, target = self.data_reader.id_prop_data[idx]
+        # prop_data = self.data_reader.id_prop_data[idx]
+        # material_id = prop_data[0]
+        # target = prop_data[1:]
         structure = self.data_reader.get_structure_by_id(material_id)
 
 
@@ -207,8 +207,8 @@ class GraphData(Dataset):
         atoms_fea = self.atom_feature_encoder.get_atoms_features(atoms)
         bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(material_id, all_nbrs)
 
-        # target = torch.Tensor([float(target)])
-        target = torch.Tensor([float(t) for t in target])
+        target = torch.Tensor([float(target)])
+        # target = torch.Tensor([float(t) for t in target])
 
         num_atoms = atoms_fea.shape[0]
 
