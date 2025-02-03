@@ -132,7 +132,7 @@ def main(args,best_loss):
     # path = "data/dataset/" + args.data_src
     # targets_filename = "data/dataset/targets/" + args.filename + ".csv"
     # molprop = 'HOMO'
-    path = "/Users/nico/Desktop/scripts/OPVGCN/data/train.db" 
+    path = "./data/train.db" 
     is_db = path.split('.')[-1] == 'db' # check if reading input data from database
 
     print(args.arg_file)
