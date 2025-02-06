@@ -1,3 +1,11 @@
+# Ignore data files from Harvard Clean Energy Project
+data/*.tbz
+data/clean_energy_data/*.sql*
+data/clean_energy_data/*.tar
+data/clean_energy_data/*.tbz
+data/clean_energy_data/*.db
+data/clean_energy_data/xyz_archive
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
