@@ -1,0 +1,436 @@
+28:CREATE TABLE `auth_group` (
+29-  `id` int(11) NOT NULL AUTO_INCREMENT,
+30-  `name` varchar(80) COLLATE utf8_bin NOT NULL,
+31-  PRIMARY KEY (`id`),
+32-  UNIQUE KEY `name` (`name`)
+33-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+34-SET character_set_client = @saved_cs_client;
+35-
+36---
+37--- Dumping data for table `auth_group`
+38---
+39--- ORDER BY:  `id`
+40-
+41-LOCK TABLES `auth_group` WRITE;
+42-/*!40000 ALTER TABLE `auth_group` DISABLE KEYS */;
+43-/*!40000 ALTER TABLE `auth_group` ENABLE KEYS */;
+44-UNLOCK TABLES;
+45-
+46---
+47--- Table structure for table `auth_group_permissions`
+48---
+49-
+--
+53:CREATE TABLE `auth_group_permissions` (
+54-  `id` int(11) NOT NULL AUTO_INCREMENT,
+55-  `group_id` int(11) NOT NULL,
+56-  `permission_id` int(11) NOT NULL,
+57-  PRIMARY KEY (`id`),
+58-  UNIQUE KEY `group_id` (`group_id`,`permission_id`),
+59-  KEY `auth_group_permissions_bda51c3c` (`group_id`),
+60-  KEY `auth_group_permissions_1e014c8f` (`permission_id`),
+61-  CONSTRAINT `group_id_refs_id_3cea63fe` FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`),
+62-  CONSTRAINT `permission_id_refs_id_a7792de1` FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`)
+63-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+64-SET character_set_client = @saved_cs_client;
+65-
+66---
+67--- Dumping data for table `auth_group_permissions`
+68---
+69--- ORDER BY:  `id`
+70-
+71-LOCK TABLES `auth_group_permissions` WRITE;
+72-/*!40000 ALTER TABLE `auth_group_permissions` DISABLE KEYS */;
+73-/*!40000 ALTER TABLE `auth_group_permissions` ENABLE KEYS */;
+74-UNLOCK TABLES;
+--
+83:CREATE TABLE `auth_permission` (
+84-  `id` int(11) NOT NULL AUTO_INCREMENT,
+85-  `name` varchar(50) COLLATE utf8_bin NOT NULL,
+86-  `content_type_id` int(11) NOT NULL,
+87-  `codename` varchar(100) COLLATE utf8_bin NOT NULL,
+88-  PRIMARY KEY (`id`),
+89-  UNIQUE KEY `content_type_id` (`content_type_id`,`codename`),
+90-  KEY `auth_permission_e4470c6e` (`content_type_id`),
+91-  CONSTRAINT `content_type_id_refs_id_728de91f` FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`)
+92-) ENGINE=InnoDB AUTO_INCREMENT=49 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+93-SET character_set_client = @saved_cs_client;
+94-
+95---
+96--- Dumping data for table `auth_permission`
+97---
+98--- ORDER BY:  `id`
+99-
+100-LOCK TABLES `auth_permission` WRITE;
+101-/*!40000 ALTER TABLE `auth_permission` DISABLE KEYS */;
+102-INSERT INTO `auth_permission` VALUES (1,'Can add permission',1,'add_permission'),(2,'Can change permission',1,'change_permission'),(3,'Can delete permission',1,'delete_permission'),(4,'Can add group',2,'add_group'),(5,'Can change group',2,'change_group'),(6,'Can delete group',2,'delete_group'),(7,'Can add user',3,'add_user'),(8,'Can change user',3,'change_user'),(9,'Can delete user',3,'delete_user'),(10,'Can add content type',4,'add_contenttype'),(11,'Can change content type',4,'change_contenttype'),(12,'Can delete content type',4,'delete_contenttype'),(13,'Can add session',5,'add_session'),(14,'Can change session',5,'change_session'),(15,'Can delete session',5,'delete_session'),(16,'Can add site',6,'add_site'),(17,'Can change site',6,'change_site'),(18,'Can delete site',6,'delete_site'),(19,'Can add log entry',7,'add_logentry'),(20,'Can change log entry',7,'change_logentry'),(21,'Can delete log entry',7,'delete_logentry'),(22,'Can add mol graph',8,'add_molgraph'),(23,'Can change mol graph',8,'change_molgraph'),(24,'Can delete mol graph',8,'delete_molgraph'),(25,'Can add mol geom',9,'add_molgeom'),(26,'Can change mol geom',9,'change_molgeom'),(27,'Can delete mol geom',9,'delete_molgeom'),(28,'Can add calc qc set1',10,'add_calcqcset1'),(29,'Can change calc qc set1',10,'change_calcqcset1'),(30,'Can delete calc qc set1',10,'delete_calcqcset1'),(31,'Can add calib qc set1',11,'add_calibqcset1'),(32,'Can change calib qc set1',11,'change_calibqcset1'),(33,'Can delete calib qc set1',11,'delete_calibqcset1'),(34,'Can add scharber',12,'add_scharber'),(35,'Can change scharber',12,'change_scharber'),(36,'Can delete scharber',12,'delete_scharber'),(37,'Can add graph stat',13,'add_graphstat'),(38,'Can change graph stat',13,'change_graphstat'),(39,'Can delete graph stat',13,'delete_graphstat'),(40,'Can add geom stat',14,'add_geomstat'),(41,'Can change geom stat',14,'change_geomstat'),(42,'Can delete geom stat',14,'delete_geomstat'),(43,'Can add graph score',15,'add_graphscore'),(44,'Can change graph score',15,'change_graphscore'),(45,'Can delete graph score',15,'delete_graphscore'),(46,'Can add geom score',16,'add_geomscore'),(47,'Can change geom score',16,'change_geomscore'),(48,'Can delete geom score',16,'delete_geomscore');
+103-/*!40000 ALTER TABLE `auth_permission` ENABLE KEYS */;
+104-UNLOCK TABLES;
+--
+113:CREATE TABLE `auth_user` (
+114-  `id` int(11) NOT NULL AUTO_INCREMENT,
+115-  `username` varchar(30) COLLATE utf8_bin NOT NULL,
+116-  `first_name` varchar(30) COLLATE utf8_bin NOT NULL,
+117-  `last_name` varchar(30) COLLATE utf8_bin NOT NULL,
+118-  `email` varchar(75) COLLATE utf8_bin NOT NULL,
+119-  `password` varchar(128) COLLATE utf8_bin NOT NULL,
+120-  `is_staff` tinyint(1) NOT NULL,
+121-  `is_active` tinyint(1) NOT NULL,
+122-  `is_superuser` tinyint(1) NOT NULL,
+123-  `last_login` datetime NOT NULL,
+124-  `date_joined` datetime NOT NULL,
+125-  PRIMARY KEY (`id`),
+126-  UNIQUE KEY `username` (`username`)
+127-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+128-SET character_set_client = @saved_cs_client;
+129-
+130---
+131--- Dumping data for table `auth_user`
+132---
+133--- ORDER BY:  `id`
+134-
+--
+148:CREATE TABLE `auth_user_groups` (
+149-  `id` int(11) NOT NULL AUTO_INCREMENT,
+150-  `user_id` int(11) NOT NULL,
+151-  `group_id` int(11) NOT NULL,
+152-  PRIMARY KEY (`id`),
+153-  UNIQUE KEY `user_id` (`user_id`,`group_id`),
+154-  KEY `auth_user_groups_fbfc09f1` (`user_id`),
+155-  KEY `auth_user_groups_bda51c3c` (`group_id`),
+156-  CONSTRAINT `group_id_refs_id_f0ee9890` FOREIGN KEY (`group_id`) REFERENCES `auth_group` (`id`),
+157-  CONSTRAINT `user_id_refs_id_831107f1` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+158-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+159-SET character_set_client = @saved_cs_client;
+160-
+161---
+162--- Dumping data for table `auth_user_groups`
+163---
+164--- ORDER BY:  `id`
+165-
+166-LOCK TABLES `auth_user_groups` WRITE;
+167-/*!40000 ALTER TABLE `auth_user_groups` DISABLE KEYS */;
+168-/*!40000 ALTER TABLE `auth_user_groups` ENABLE KEYS */;
+169-UNLOCK TABLES;
+--
+178:CREATE TABLE `auth_user_user_permissions` (
+179-  `id` int(11) NOT NULL AUTO_INCREMENT,
+180-  `user_id` int(11) NOT NULL,
+181-  `permission_id` int(11) NOT NULL,
+182-  PRIMARY KEY (`id`),
+183-  UNIQUE KEY `user_id` (`user_id`,`permission_id`),
+184-  KEY `auth_user_user_permissions_fbfc09f1` (`user_id`),
+185-  KEY `auth_user_user_permissions_1e014c8f` (`permission_id`),
+186-  CONSTRAINT `permission_id_refs_id_67e79cb` FOREIGN KEY (`permission_id`) REFERENCES `auth_permission` (`id`),
+187-  CONSTRAINT `user_id_refs_id_f2045483` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+188-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+189-SET character_set_client = @saved_cs_client;
+190-
+191---
+192--- Dumping data for table `auth_user_user_permissions`
+193---
+194--- ORDER BY:  `id`
+195-
+196-LOCK TABLES `auth_user_user_permissions` WRITE;
+197-/*!40000 ALTER TABLE `auth_user_user_permissions` DISABLE KEYS */;
+198-/*!40000 ALTER TABLE `auth_user_user_permissions` ENABLE KEYS */;
+199-UNLOCK TABLES;
+--
+208:CREATE TABLE `data_calcqcset1` (
+209-  `id` int(11) NOT NULL AUTO_INCREMENT,
+210-  `mol_graph_id` int(11) NOT NULL,
+211-  `mol_geom_id` int(11) NOT NULL,
+212-  `calc_id_str` varchar(250) COLLATE utf8_bin NOT NULL,
+213-  `calc_tbz_str` varchar(250) COLLATE utf8_bin NOT NULL,
+214-  `calc_archive_subdir_path` varchar(250) COLLATE utf8_bin NOT NULL,
+215-  `modelchem_str` varchar(100) COLLATE utf8_bin NOT NULL,
+216-  `e_total` double DEFAULT NULL,
+217-  `e_homo_alpha` double DEFAULT NULL,
+218-  `e_lumo_alpha` double DEFAULT NULL,
+219-  `e_gap_alpha` double DEFAULT NULL,
+220-  `e_homo_beta` double DEFAULT NULL,
+221-  `e_lumo_beta` double DEFAULT NULL,
+222-  `e_gap_beta` double DEFAULT NULL,
+223-  `e_gap_min` double DEFAULT NULL,
+224-  `dipmom_total` double DEFAULT NULL,
+225-  `s2_val` double DEFAULT NULL,
+226-  PRIMARY KEY (`id`),
+227-  UNIQUE KEY `calc_id_str` (`calc_id_str`),
+228-  KEY `data_calcqcset1_88fb5108` (`mol_graph_id`),
+229-  KEY `data_calcqcset1_2174315b` (`mol_geom_id`),
+--
+26014:CREATE TABLE `data_calibqcset1` (
+26015-  `id` int(11) NOT NULL AUTO_INCREMENT,
+26016-  `mol_graph_id` int(11) DEFAULT NULL,
+26017-  `mol_geom_id` int(11) DEFAULT NULL,
+26018-  `calc_qcset1_id` int(11) NOT NULL,
+26019-  `calib_type` varchar(100) COLLATE utf8_bin NOT NULL,
+26020-  `e_homo_alpha` double DEFAULT NULL,
+26021-  `e_lumo_alpha` double DEFAULT NULL,
+26022-  `e_gap_alpha` double DEFAULT NULL,
+26023-  `e_homo_beta` double DEFAULT NULL,
+26024-  `e_lumo_beta` double DEFAULT NULL,
+26025-  `e_gap_beta` double DEFAULT NULL,
+26026-  `e_gap_min` double DEFAULT NULL,
+26027-  PRIMARY KEY (`id`),
+26028-  KEY `data_calibqcset1_88fb5108` (`mol_graph_id`),
+26029-  KEY `data_calibqcset1_2174315b` (`mol_geom_id`),
+26030-  KEY `data_calibqcset1_c81f522c` (`calc_qcset1_id`),
+26031-  CONSTRAINT `mol_geom_id_refs_id_abd50351` FOREIGN KEY (`mol_geom_id`) REFERENCES `data_molgeom` (`id`),
+26032-  CONSTRAINT `calc_qcset1_id_refs_id_ff27e990` FOREIGN KEY (`calc_qcset1_id`) REFERENCES `data_calcqcset1` (`id`),
+26033-  CONSTRAINT `mol_graph_id_refs_id_7521e62c` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+26034-) ENGINE=InnoDB AUTO_INCREMENT=143687950 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+26035-SET character_set_client = @saved_cs_client;
+--
+42490:CREATE TABLE `data_geomscore` (
+42491-  `id` int(11) NOT NULL AUTO_INCREMENT,
+42492-  `mol_geom_id` int(11) NOT NULL,
+42493-  `mol_graph_id` int(11) DEFAULT NULL,
+42494-  `score_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42495-  `score` double DEFAULT NULL,
+42496-  `score_n` int(11) DEFAULT NULL,
+42497-  `score_min` double DEFAULT NULL,
+42498-  `score_max` double DEFAULT NULL,
+42499-  `score_mad` double DEFAULT NULL,
+42500-  `score_rmsd` double DEFAULT NULL,
+42501-  PRIMARY KEY (`id`),
+42502-  KEY `data_geomscore_2174315b` (`mol_geom_id`),
+42503-  KEY `data_geomscore_88fb5108` (`mol_graph_id`),
+42504-  CONSTRAINT `mol_geom_id_refs_id_273ab9ff` FOREIGN KEY (`mol_geom_id`) REFERENCES `data_molgeom` (`id`),
+42505-  CONSTRAINT `mol_graph_id_refs_id_4e10efe4` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+42506-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+42507-SET character_set_client = @saved_cs_client;
+42508-
+42509---
+42510--- Dumping data for table `data_geomscore`
+42511---
+--
+42526:CREATE TABLE `data_geomstat` (
+42527-  `id` int(11) NOT NULL AUTO_INCREMENT,
+42528-  `mol_graph_id` int(11) DEFAULT NULL,
+42529-  `mol_geom_id` int(11) NOT NULL,
+42530-  `calib_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42531-  `property_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42532-  `average` double DEFAULT NULL,
+42533-  `n` int(11) DEFAULT NULL,
+42534-  `max` double DEFAULT NULL,
+42535-  `min` double DEFAULT NULL,
+42536-  `mad` double DEFAULT NULL,
+42537-  `rmsd` double DEFAULT NULL,
+42538-  PRIMARY KEY (`id`),
+42539-  KEY `data_geomstat_88fb5108` (`mol_graph_id`),
+42540-  KEY `data_geomstat_2174315b` (`mol_geom_id`),
+42541-  CONSTRAINT `mol_geom_id_refs_id_66fbfbac` FOREIGN KEY (`mol_geom_id`) REFERENCES `data_molgeom` (`id`),
+42542-  CONSTRAINT `mol_graph_id_refs_id_d24c18d1` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+42543-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+42544-SET character_set_client = @saved_cs_client;
+42545-
+42546---
+42547--- Dumping data for table `data_geomstat`
+--
+42563:CREATE TABLE `data_graphscore` (
+42564-  `id` int(11) NOT NULL AUTO_INCREMENT,
+42565-  `mol_graph_id` int(11) NOT NULL,
+42566-  `score_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42567-  `score` double DEFAULT NULL,
+42568-  `score_n` int(11) DEFAULT NULL,
+42569-  `score_min` double DEFAULT NULL,
+42570-  `score_max` double DEFAULT NULL,
+42571-  `score_mad` double DEFAULT NULL,
+42572-  `score_rmsd` double DEFAULT NULL,
+42573-  PRIMARY KEY (`id`),
+42574-  KEY `data_graphscore_88fb5108` (`mol_graph_id`),
+42575-  CONSTRAINT `mol_graph_id_refs_id_168e1bff` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+42576-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+42577-SET character_set_client = @saved_cs_client;
+42578-
+42579---
+42580--- Dumping data for table `data_graphscore`
+42581---
+42582--- ORDER BY:  `id`
+42583-
+42584-LOCK TABLES `data_graphscore` WRITE;
+--
+42596:CREATE TABLE `data_graphstat` (
+42597-  `id` int(11) NOT NULL AUTO_INCREMENT,
+42598-  `mol_graph_id` int(11) NOT NULL,
+42599-  `calib_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42600-  `property_type` varchar(100) COLLATE utf8_bin NOT NULL,
+42601-  `average` double DEFAULT NULL,
+42602-  `n` int(11) DEFAULT NULL,
+42603-  `max` double DEFAULT NULL,
+42604-  `min` double DEFAULT NULL,
+42605-  `mad` double DEFAULT NULL,
+42606-  `rmsd` double DEFAULT NULL,
+42607-  PRIMARY KEY (`id`),
+42608-  KEY `data_graphstat_88fb5108` (`mol_graph_id`),
+42609-  CONSTRAINT `mol_graph_id_refs_id_7e19d69c` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+42610-) ENGINE=InnoDB AUTO_INCREMENT=6987220 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+42611-SET character_set_client = @saved_cs_client;
+42612-
+42613---
+42614--- Dumping data for table `data_graphstat`
+42615---
+42616--- ORDER BY:  `id`
+42617-
+--
+43530:CREATE TABLE `data_molgeom` (
+43531-  `id` int(11) NOT NULL AUTO_INCREMENT,
+43532-  `mol_graph_id` int(11) NOT NULL,
+43533-  `mol_id_str` varchar(100) COLLATE utf8_bin NOT NULL,
+43534-  `xyz_file_str` varchar(100) COLLATE utf8_bin NOT NULL,
+43535-  `xyz_archive_subdir_path` varchar(250) COLLATE utf8_bin NOT NULL,
+43536-  `e_nucl` double DEFAULT NULL,
+43537-  `duplicate_geom` tinyint(1) DEFAULT NULL,
+43538-  PRIMARY KEY (`id`),
+43539-  UNIQUE KEY `mol_id_str` (`mol_id_str`),
+43540-  KEY `data_molgeom_88fb5108` (`mol_graph_id`),
+43541-  CONSTRAINT `mol_graph_id_refs_id_30512f50` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+43542-) ENGINE=InnoDB AUTO_INCREMENT=26125526 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+43543-SET character_set_client = @saved_cs_client;
+43544-
+43545---
+43546--- Dumping data for table `data_molgeom`
+43547---
+43548--- ORDER BY:  `id`
+43549-
+43550-LOCK TABLES `data_molgeom` WRITE;
+43551-/*!40000 ALTER TABLE `data_molgeom` DISABLE KEYS */;
+--
+47105:CREATE TABLE `data_molgraph` (
+47106-  `id` int(11) NOT NULL AUTO_INCREMENT,
+47107-  `SMILES_str` varchar(250) COLLATE utf8_bin NOT NULL,
+47108-  `iupac_str` varchar(250) COLLATE utf8_bin NOT NULL,
+47109-  `inchi_str` varchar(250) COLLATE utf8_bin NOT NULL,
+47110-  `cas_str` varchar(250) COLLATE utf8_bin NOT NULL,
+47111-  `trivial_namestr` longtext COLLATE utf8_bin NOT NULL,
+47112-  `stoich_str` varchar(30) COLLATE utf8_bin NOT NULL,
+47113-  `n_el` int(11) DEFAULT NULL,
+47114-  `n_heavyatoms` int(11) DEFAULT NULL,
+47115-  `n_bf_sz` int(11) DEFAULT NULL,
+47116-  `n_bf_dzp` int(11) DEFAULT NULL,
+47117-  `n_bf_tzp` int(11) DEFAULT NULL,
+47118-  `mass` double DEFAULT NULL,
+47119-  `permission_level` int(11) DEFAULT NULL,
+47120-  PRIMARY KEY (`id`),
+47121-  UNIQUE KEY `SMILES_str` (`SMILES_str`)
+47122-) ENGINE=InnoDB AUTO_INCREMENT=3102854 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+47123-SET character_set_client = @saved_cs_client;
+47124-
+47125---
+47126--- Dumping data for table `data_molgraph`
+--
+47524:CREATE TABLE `data_scharber` (
+47525-  `id` int(11) NOT NULL AUTO_INCREMENT,
+47526-  `mol_graph_id` int(11) DEFAULT NULL,
+47527-  `mol_geom_id` int(11) DEFAULT NULL,
+47528-  `calib_id` int(11) DEFAULT NULL,
+47529-  `scharber_type` varchar(100) COLLATE utf8_bin NOT NULL,
+47530-  `pce` double DEFAULT NULL,
+47531-  `voc` double DEFAULT NULL,
+47532-  `jsc` double DEFAULT NULL,
+47533-  PRIMARY KEY (`id`),
+47534-  KEY `data_scharber_88fb5108` (`mol_graph_id`),
+47535-  KEY `data_scharber_2174315b` (`mol_geom_id`),
+47536-  KEY `data_scharber_8d261110` (`calib_id`),
+47537-  CONSTRAINT `mol_geom_id_refs_id_4e85f578` FOREIGN KEY (`mol_geom_id`) REFERENCES `data_molgeom` (`id`),
+47538-  CONSTRAINT `calib_id_refs_id_23e7321c` FOREIGN KEY (`calib_id`) REFERENCES `data_calibqcset1` (`id`),
+47539-  CONSTRAINT `mol_graph_id_refs_id_8c7167ad` FOREIGN KEY (`mol_graph_id`) REFERENCES `data_molgraph` (`id`)
+47540-) ENGINE=InnoDB AUTO_INCREMENT=4658147 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+47541-SET character_set_client = @saved_cs_client;
+47542-
+47543---
+47544--- Dumping data for table `data_scharber`
+47545---
+--
+47949:CREATE TABLE `django_admin_log` (
+47950-  `id` int(11) NOT NULL AUTO_INCREMENT,
+47951-  `action_time` datetime NOT NULL,
+47952-  `user_id` int(11) NOT NULL,
+47953-  `content_type_id` int(11) DEFAULT NULL,
+47954-  `object_id` longtext COLLATE utf8_bin,
+47955-  `object_repr` varchar(200) COLLATE utf8_bin NOT NULL,
+47956-  `action_flag` smallint(5) unsigned NOT NULL,
+47957-  `change_message` longtext COLLATE utf8_bin NOT NULL,
+47958-  PRIMARY KEY (`id`),
+47959-  KEY `django_admin_log_fbfc09f1` (`user_id`),
+47960-  KEY `django_admin_log_e4470c6e` (`content_type_id`),
+47961-  CONSTRAINT `content_type_id_refs_id_288599e6` FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`),
+47962-  CONSTRAINT `user_id_refs_id_c8665aa` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)
+47963-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+47964-SET character_set_client = @saved_cs_client;
+47965-
+47966---
+47967--- Dumping data for table `django_admin_log`
+47968---
+47969--- ORDER BY:  `id`
+47970-
+--
+47983:CREATE TABLE `django_content_type` (
+47984-  `id` int(11) NOT NULL AUTO_INCREMENT,
+47985-  `name` varchar(100) COLLATE utf8_bin NOT NULL,
+47986-  `app_label` varchar(100) COLLATE utf8_bin NOT NULL,
+47987-  `model` varchar(100) COLLATE utf8_bin NOT NULL,
+47988-  PRIMARY KEY (`id`),
+47989-  UNIQUE KEY `app_label` (`app_label`,`model`)
+47990-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+47991-SET character_set_client = @saved_cs_client;
+47992-
+47993---
+47994--- Dumping data for table `django_content_type`
+47995---
+47996--- ORDER BY:  `id`
+47997-
+47998-LOCK TABLES `django_content_type` WRITE;
+47999-/*!40000 ALTER TABLE `django_content_type` DISABLE KEYS */;
+48000-INSERT INTO `django_content_type` VALUES (1,'permission','auth','permission'),(2,'group','auth','group'),(3,'user','auth','user'),(4,'content type','contenttypes','contenttype'),(5,'session','sessions','session'),(6,'site','sites','site'),(7,'log entry','admin','logentry'),(8,'mol graph','data','molgraph'),(9,'mol geom','data','molgeom'),(10,'calc qc set1','data','calcqcset1'),(11,'calib qc set1','data','calibqcset1'),(12,'scharber','data','scharber'),(13,'graph stat','data','graphstat'),(14,'geom stat','data','geomstat'),(15,'graph score','data','graphscore'),(16,'geom score','data','geomscore');
+48001-/*!40000 ALTER TABLE `django_content_type` ENABLE KEYS */;
+48002-UNLOCK TABLES;
+48003-
+48004---
+--
+48011:CREATE TABLE `django_session` (
+48012-  `session_key` varchar(40) COLLATE utf8_bin NOT NULL,
+48013-  `session_data` longtext COLLATE utf8_bin NOT NULL,
+48014-  `expire_date` datetime NOT NULL,
+48015-  PRIMARY KEY (`session_key`),
+48016-  KEY `django_session_c25c2c28` (`expire_date`)
+48017-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+48018-SET character_set_client = @saved_cs_client;
+48019-
+48020---
+48021--- Dumping data for table `django_session`
+48022---
+48023--- ORDER BY:  `session_key`
+48024-
+48025-LOCK TABLES `django_session` WRITE;
+48026-/*!40000 ALTER TABLE `django_session` DISABLE KEYS */;
+48027-/*!40000 ALTER TABLE `django_session` ENABLE KEYS */;
+48028-UNLOCK TABLES;
+48029-
+48030---
+48031--- Table structure for table `django_site`
+48032---
+--
+48037:CREATE TABLE `django_site` (
+48038-  `id` int(11) NOT NULL AUTO_INCREMENT,
+48039-  `domain` varchar(100) COLLATE utf8_bin NOT NULL,
+48040-  `name` varchar(50) COLLATE utf8_bin NOT NULL,
+48041-  PRIMARY KEY (`id`)
+48042-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+48043-SET character_set_client = @saved_cs_client;
+48044-
+48045---
+48046--- Dumping data for table `django_site`
+48047---
+48048--- ORDER BY:  `id`
+48049-
+48050-LOCK TABLES `django_site` WRITE;
+48051-/*!40000 ALTER TABLE `django_site` DISABLE KEYS */;
+48052-INSERT INTO `django_site` VALUES (1,'example.com','example.com');
+48053-/*!40000 ALTER TABLE `django_site` ENABLE KEYS */;
+48054-UNLOCK TABLES;
+48055-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+48056-
+48057-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+48058-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;

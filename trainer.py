@@ -116,12 +116,12 @@ def my_parser():
     
         # args.arg_file = args0.arg_file # add arg_file argument to the list of newly parsed args
 
-    print('- - - - - - - - - - PRINTING ARGS - - - - - - - - - - ')
+        print('- - - - - - - - - - PRINTING ARGS - - - - - - - - - - ')
 
-    for arg in vars(args):
-        print(f'{arg}:   {getattr(args,arg)}')
-    
-    return args
+        for arg in vars(args):
+            print(f'{arg}:   {getattr(args,arg)}')
+        
+        return args
 
 
 
@@ -132,14 +132,16 @@ def main(args,best_loss):
     # path = "data/dataset/" + args.data_src
     # targets_filename = "data/dataset/targets/" + args.filename + ".csv"
     # molprop = 'HOMO'
-    path = "./data/train.db" 
+    # path = "./data/train.db" 
+    datapath = "D:/harvard-cep-dataset-main/Raw-data"
+    path = os.path.join(datapath,'xyzfiles')
     is_db = path.split('.')[-1] == 'db' # check if reading input data from database
 
     print(args.arg_file)
     molprop = args.molecular_property
     # molprop = os.path.basename(args.arg_file).split('_')[0]
 
-    targets_filename = f"data/dataset/targets/train_{molprop}-targets.csv"
+    targets_filename = os.path.join(os.path.join(datapath,f'moldata_xyzexists_{molprop}.csv'))
 
     logger.info('dataset path = {}'.format(path))
     logger.info('neighbor search radius = {}'.format(args.radius))
@@ -260,7 +262,7 @@ def main(args,best_loss):
                 break
 
     logger.info("Test with the best model")
-    best_checkpoint = torch.load('weights/model_best.pth.tar')
+    best_checkpoint = torch.load(f'weights/model_best_{molprop}.pth.tar')
     model.load_state_dict(best_checkpoint['state_dict'])
     test_loss = test(test_loader, model, criterion, normalizer, path="test")
 

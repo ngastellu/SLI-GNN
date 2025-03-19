@@ -9,7 +9,7 @@ class Log(object):
         self.logger = logging.getLogger(logger)
         self.logger.setLevel(logging.INFO)
         self.date = time.strftime("%Y_%m_%d")
-        self.log_time = datetime.now().strftime("%H:%M:%S")
+        self.log_time = datetime.now().strftime("%H_%M_%S") #replacing ':' with '_' for Windows
         self.log_name = file_dir + "/" + log_file_name + "_" + self.date + '_' + self.log_time + '.log'
 
         fh = logging.FileHandler(self.log_name, 'a', encoding='utf-8')

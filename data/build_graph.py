@@ -18,13 +18,17 @@ class DataReader:
 
     def __init__(self, path, targets_filename, random_seed=123,is_db=False):
         self.path = path
+        print(f'Looking for coord files in path: ', path)
+        # print(os.listdir(path))
         assert os.path.exists(path), f'path {path} does not exist!'
         id_prop_file = os.path.join(targets_filename)
 
         assert os.path.exists(id_prop_file), targets_filename+' does not exist!'
         with open(id_prop_file) as f:
             reader = csv.reader(f)
+            next(reader) # skip headers
             self.id_prop_data = [row for row in reader]
+            # print(self.id_prop_data)
         
         material_id, *_ = self.id_prop_data[0]
         self.suffix = None

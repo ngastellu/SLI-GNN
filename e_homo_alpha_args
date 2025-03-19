@@ -1,0 +1,1 @@
+--atom-fea-len 256 --nbr-fea-len 256 --h-fea-len 128 --n-conv 7 --l1 0 --l2 3 --pooling 'max' --lr 0.00076 --batch-size 1000 --molecular-property 'e_homo_alpha'
