@@ -133,7 +133,6 @@ class BondFeatureEncoder(object):
         for distances in nbr_fea:
             data = pd.cut(distances, self.filter, labels=False, include_lowest=True)
             disperse_nbr_fea.append(data)
-        # print('****** YEEEEEEHAWWWWWWW *******************************\n',disperse_nbr_fea)
         disperse_nbr_fea = torch.LongTensor(np.array(disperse_nbr_fea))
         return disperse_nbr_fea.view(-1, )
 

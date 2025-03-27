@@ -5,6 +5,9 @@ data/clean_energy_data/*.tar
 data/clean_energy_data/*.tbz
 data/clean_energy_data/*.db
 data/clean_energy_data/xyz_archive
+data/.DS_Store
+data/dataset/.DS_Store
+data/.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
