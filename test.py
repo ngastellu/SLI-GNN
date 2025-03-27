@@ -129,8 +129,8 @@ def test(test_loader, model, criterion, normalizer,molprop):
     else:
         accuracies = AverageMeter()
     for batch_idx, data in enumerate(test_loader, 0):
-        if batch_idx > 50:
-            break
+        # if batch_idx > 50: # early stopping
+        #     break
         with torch.no_grad():
             if model_args.task == 'regression':
                 targets = data.y.unsqueeze(1)
