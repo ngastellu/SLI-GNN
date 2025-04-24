@@ -141,3 +141,6 @@ dmypy.json
 
 
 plot_results2.py
+
+.DS_Store
+*/.DS_Store
