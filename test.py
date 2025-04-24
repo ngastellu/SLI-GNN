@@ -6,12 +6,13 @@ from random import sample
 from data.build_graph import *
 from models.model import Net
 from utils.logger import logger
+from utils.utils import train_val_test_split
 
 parser = argparse.ArgumentParser(description='SLI-GNN')
 # parser.add_argument('trained_model', help='name of the trained model (weights/trained_model).')
 # parser.add_argument('dataset_name', help='dataset name (data/dataset/dataset_name).')
 # parser.add_argument('filename', metavar='F', help='csv filename(dataset/targets/filename.csv)')
-parser.add_argument('-b', '--batch-size', default=512, type=int,
+parser.add_argument('-b', '--batch-size', default=1000, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('-j', '--workers', default=2, type=int, metavar='N',
                     help='number of data loading workers (default: 0)')
@@ -19,11 +20,30 @@ parser.add_argument('--disable-cuda', action='store_true',
                     help='Disable CUDA')
 parser.add_argument('--print-freq', '-p', default=10, type=int,
                     metavar='N', help='print frequency (default: 10)')
+train_group = parser.add_mutually_exclusive_group()
+train_group.add_argument('--train-ratio', default=0.6, type=float, metavar='N',
+                        help='number of training data to be loaded (default 0.6)')
+train_group.add_argument('--train-size', default=None, type=int, metavar='N',
+                        help='number of training data to be loaded (default none)')
+valid_group = parser.add_mutually_exclusive_group()
+valid_group.add_argument('--valid-ratio', default=0.2, type=float, metavar='N',
+                        help='percentage of validation data to be loaded (default '
+                            '0.2)')
+valid_group.add_argument('--valid-size', default=None, type=int, metavar='N',
+                        help='number of validation data to be loaded (default '
+                            '1000)')
+test_group = parser.add_mutually_exclusive_group()
+test_group.add_argument('--test-ratio', default=0.2, type=float, metavar='N',
+                        help='percentage of test data to be loaded (default 0.2)')
+test_group.add_argument('--test-size', default=None, type=int, metavar='N',
+                        help='number of test data to be loaded (default 1000)')
+
 
 # args = parser.parse_args(sys.argv[1:])
 args = parser.parse_args()
 
-model_path = 'weights/e_homo_alpha_checkpoint.pth.tar'
+molprop = 'e_homo_alpha'
+model_path = f'weights/{molprop}_checkpoint.pth.tar'
 if os.path.isfile(model_path):
     logger.info("=> loading model params '{}'".format(model_path))
     model_checkpoint = torch.load(model_path,
@@ -39,7 +59,7 @@ print(device)
 
 
 def main():
-    global args, model_args, best_loss, model_path
+    global args, model_args, best_loss, model_path, molprop
 
     # load data
     datapath = "D:/harvard-cep-dataset-main/Raw-data"
@@ -49,20 +69,34 @@ def main():
     # path = "/Users/nico/Desktop/scripts/OPVGCN/data/train.db"
     # path = 'data/dataset/'
     
-    molprop = 'e_homo_alpha'
+   
     print(f'\n\n~~~~~~~~ Reading from {path} ~~~~~~~~')
     targets_filename = os.path.join(os.path.join(datapath,f'moldata_xyzexists_{molprop}.csv'))
     # targets_filename = f"data/dataset/targets/train_{mp}-targets.csv"
     print(f'** Target CSV =  {targets_filename} **')
     properties_list = model_args.properties[0]
     is_db = path.split('.')[-1] == 'db'
-    print(f'************** is_db = {is_db} **************')
+    # print(f'************** is_db = {is_db} **************')
     dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=model_args.max_num_nbr, radius=model_args.radius,
                         properties_list=properties_list, step=model_args.step,is_db=is_db)
     
     my_atom_ref = None
 
-    test_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers)
+
+    *_, test_loader = train_val_test_split(dataset,
+                             batch_size=args.batch_size,
+                             train_ratio=args.train_ratio,
+                             valid_ratio=args.valid_ratio,
+                             test_ratio=args.test_ratio,
+                             num_workers=args.workers,
+                             train_size=args.train_size,
+                             valid_size=args.valid_size,
+                             test_size=args.test_size)
+    
+    Ndata = len(dataset)
+    Ntest = len(test_loader)
+    print(f'******* Size of complete dataset = {Ndata} *******')
+    print(f'******* Size of test set = {Ntest} (should be = {Ndata*args.test_ratio}) *******')
 
     # build model
     orig_bond_fea_len = dataset.bond_feature_encoder.num_category
