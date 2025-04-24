@@ -17,7 +17,6 @@ success_msg = 'Normal termination'
 nchars = len(success_msg)
 
 exit_codes = np.zeros(nruns, dtype='int')
-run_IDs = np.empty(nruns, dtype='str')
 
 # good_runs values meaning:
 #   0 = success
@@ -28,7 +27,6 @@ run_IDs = np.empty(nruns, dtype='str')
 k = 0
 for mol_id in mol_IDs:
     for run_type in ['singlet', 'triplet']:
-        run_IDs[k] = f'{mol_id}_{run_type}'
         print(f'{mol_id}_{run_type}: ', end = '')
         comfile = os.path.join(run_name, f'{mol_id}_{run_type}.com')
         logfile = os.path.join(run_name, f'{mol_id}_{run_type}.log')
@@ -50,12 +48,19 @@ for mol_id in mol_IDs:
                 exit_codes[k] = 3
         k += 1
 
+
 if np.any(exit_codes > 0):
     ibad = exit_codes.nonzero()[0]
     outpath = os.path.join(run_name, 'failed_runs.txt')
     print(f'\n *** {ibad.shape[0]} failed runs found (including {(exit_codes == 1).sum()} missing comfiles) ***\nListing problematic runs in {outpath}.')
     with open(outpath,'w') as fo:
         for i in ibad:
-            fo.write(f'{run_IDs[i]}  {exit_codes[i]}\n')
+            k = i // 2
+            if i % 2 == 0:
+                run_type = 'singlet'
+            else:
+                run_type = 'triplet'
+            run_ID = f'{mol_IDs[k]}_{run_type}'
+            fo.write(f'{run_ID}  {exit_codes[i]}\n')
 else:
     print('\nAll good~')

@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:4           # Number of GPU(s) per node
 #SBATCH --gres=gpu:p100:4      # Type of GPU(s) per node
 #SBATCH --cpus-per-task=24     # CPU cores/threads
-#SBATCH --array=0-1
+#SBATCH --array=0-21
 #SBATCH --output=reslurm_%j-%a.out     # Output file for the job
 #SBATCH --error=reslurm_%j-%a.err     # Output file for the job
 #SBATCH --mem=90GB              # Memory per node
@@ -26,9 +26,8 @@ fi
 njobs=$((1 + $SLURM_ARRAY_TASK_MAX - $SLURM_ARRAY_TASK_MIN))
 
 fail_file="${rundir}/failed_runs.txt"
-mapfile -t bad_logs < "${fail_file}"
 
-nfail=${#bad_logs[@]}
+nfail=$(wc -l < "$fail_file") # use '<' to avoid capturing the file name
 echo "Working on ${rundir}/"
 echo "Found $nfail failed runs."
 
@@ -41,8 +40,10 @@ if [[ $njobs != $nfail ]] ; then
 fi
 
 # Get molecule ID from failed run
-failed_log=${bad_logs[$SLURM_ARRAY_TASK_ID]} # failed run to be resubmitted by this job in particular
-JOB_ID=${failed_log%.*} # Parameter expansion to remove '.log' extension
+run_line=$(head -n $SLURM_ARRAY_TASK_ID "$fail_file" | tail -n 1) # line containing name of failed run
+read -ra split_line <<< "$run_line" # split line using white space
+job_ID=${rundir}/${split_line[0]}
+
 
 echo "Working on file ${JOB_ID}.com"
 
