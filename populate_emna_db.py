@@ -6,7 +6,72 @@ import sqlite3
 import re
 
 
-Ha2eV = 27.2114
+# global vars (don't touch)
+
+HA_TO_EV = 27.2114
+DB_PATH = Path("~/scratch/DFT_OSC.db")
+
+
+def update_db(datadir, db_path=DB_PATH):
+    """Updates SQLite database at `db_path` using the contents of the Gaussian log files that folder `datadir` contains. 
+    Recursively iterates over all of the along with all of the subfolders of `datadir`."""
+    
+    if not isinstance(db_path, Path): db_path = Path(db_path)
+    if not isinstance(datadir, Path): datadir = Path(datadir)
+
+    print(f'********** Working on folder {str(datadir)} **********', flush=True)
+
+    con = sqlite3.connect(db_path.expanduser())
+    cur = con.cursor()
+
+    if not any([f.suffix == '.log' for f in datadir.iterdir()]): # Look for Gaussiam output files
+        # Recursion over subfolders of datadir
+        for d in subdirs(datadir):
+            if str(d.name)[0] != str(datadir)[0]: 
+                print('Skipped!')
+                continue # skips all subfolders with different inital letter than `datadir`
+            update_db(d)
+    else:
+        print('Found Gaussian log files!')
+
+        conf_names = datadir / "conf_names.txt"
+
+        data = []
+
+        cur.execute("SELECT MAX(id) FROM mol_dft_data;")
+        max_id = cur.fetchone()[0]
+        print(f'**** MAX ID = {max_id} ****\n\n')
+
+        if max_id is None: max_id = 0
+
+        with open(conf_names) as fc:
+            for k, line in enumerate(fc):   
+                split_line = line.strip().split()
+                mol_name = split_line[0] + '.molecule'
+                sing_name =  datadir / (split_line[2] + '_singlet.log')
+                trip_name = datadir / (split_line[2] + '_triplet.log')
+
+                print(sing_name,flush=True)
+                Esinglet, Ehomo, Elumo, dh, dl = parse_singlet_log(sing_name)
+                print(trip_name,flush=True)
+                Etriplet = parse_triplet_log(trip_name)
+                E31 = Etriplet - Esinglet
+
+                data.append((max_id + 1 + k, mol_name, Ehomo, Elumo, dh, dl, E31))
+                print('\n')
+
+        # Wrap up INSERT statement into a transaction and a call to `executemany` for greater efficiency
+        con.execute("BEGIN TRANSACTION")
+        cur.executemany("INSERT INTO mol_dft_data VALUES (?, ?, ?, ?, ?, ?, ?)", data)
+        con.commit()
+        print(f'Added {len(data)} rows to {db_path}')
+
+
+def subdirs(d):
+    """Looks for subdirectories in directory `d`. In practice this function is used to determine
+    if the script should look for Gaussian output files in the current directory, or in its subdirectories.
+    It returns a (possibly empty) list of the subfolders contained in `d`."""
+    return [entry for entry in d.iterdir() if entry.is_dir()]
 
 def parse_singlet_log(logfile):
     with open(logfile) as fo:
@@ -24,9 +89,9 @@ def parse_singlet_log(logfile):
             split_line = line.strip().split()
             mo_type = split_line[1]
             if mo_type == 'occ.':
-                eocc.extend([float(e) * Ha2eV for e in split_line[4:]])
+                extend_energies(eocc, line)
             elif mo_type == 'virt.':
-                evirt.extend([float(e) * Ha2eV for e in split_line[4:]])
+                extend_energies(evirt, line)
                 break # only need LUMO and LUMO+1
 
     eocc.sort()
@@ -52,55 +117,22 @@ def read_E0(fo):
     for line in fo:
         if line[:10] == ' SCF Done:':
             break
-    E0 = float(line.split()[4]) * Ha2eV
+    E0 = float(line.split()[4]) * HA_TO_EV
     return E0
 
-def append_energies(energies, split_line):
-    pass
+def extend_energies(energies, line):
+    pattern = r'[-]?\d+\.\d{5}'
+    matches = re.findall(pattern, line)
+    energies.extend([float(e) * HA_TO_EV for e in matches])
+
+
+
+    
 
 
 # -------------------- MAIN --------------------
 
-db_path = Path("~/scratch/DFT_OSC.db")
-con = sqlite3.connect(db_path.expanduser())
-cur = con.cursor()
 
+outdir = sys.argv[1]
+update_db(outdir)
 
-if len(sys.argv) == 2:
-    nn = int(sys.argv[1])
-    datadir = Path(f"C{nn}")
-
-else:
-    nn = int(sys.argv[1])
-    mm = int(sys.argv[2])
-    datadir = Path(f"C{nn}/C{nn}_C{mm}")
-
-
-conf_names = datadir / "conf_names.txt"
-
-# mol_names = [] 
-# sing_names = [] 
-# trip_names = [] 
-
-data = []
-
-with open(conf_names) as fc:
-    for k, line in enumerate(fc):
-        split_line = line.strip().split()
-        mol_name = split_line[0] + '.molecule'
-        sing_name =  datadir / (split_line[2] + '_singlet.log')
-        trip_name = datadir / (split_line[2] + '_triplet.log')
-
-        print(sing_name)
-        Esinglet, Ehomo, Elumo, dh, dl = parse_singlet_log(sing_name)
-        print(trip_name)
-        Etriplet = parse_triplet_log(trip_name)
-        E31 = Etriplet - Esinglet
-
-        data.append((k, mol_name, Ehomo, Elumo, dh, dl, E31))
-        print('\n')
-
-con.execute("BEGIN TRANSACTION")
-cur.executemany("INSERT INTO mol_dft_data VALUES (?, ?, ?, ?, ?, ?, ?)", data)
-con.commit()
-print(f'Added {len(data)} rows to {db_path}')
