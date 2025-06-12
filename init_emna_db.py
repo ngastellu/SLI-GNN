@@ -3,7 +3,7 @@
 import sqlite3
 from pathlib import Path
 
-db_path = Path("~/scratch/DFT_OSC.db")
+db_path = Path("~/scratch/ML_OSC.db")
 con = sqlite3.connect(db_path.expanduser())
 cur = con.cursor()
 
