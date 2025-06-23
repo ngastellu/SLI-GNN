@@ -9,23 +9,19 @@ from sklearn.metrics import accuracy_score
 
 def train_val_test_split(dataset, batch_size=64,
                          train_ratio=0.6, valid_ratio=0.2,
-                         test_ratio=0.2, num_workers=1,
-                         **kwargs):
-
+                         test_ratio=0.2, num_workers=1,seed=64):
     total_size = len(dataset)
-    index_list = list(range(total_size))
-    if kwargs['train_size']:
-        train_size = kwargs['train_size']
-    else:
-        train_size = int(train_ratio * total_size)
-    if kwargs['valid_size']:
-        valid_size = kwargs['valid_size']
-    else:
-        valid_size = int(valid_ratio * total_size)
-    if kwargs['test_size']:
-        test_size = kwargs['test_size']
-    else:
-        test_size = int(test_ratio * total_size)
+    rng = np.random.default_rng(seed)
+    index_list = rng.shuffle(np.arange(1,total_size+1))
+
+
+    ratio_sum = train_ratio + valid_ratio + test_ratio
+    assert ratio_sum == 1.0, f"Train/validation/test ratios sum to {ratio_sum} != 1"
+
+    train_size = int(train_ratio * total_size)
+    valid_size = int(valid_ratio * total_size)
+    test_size = int(test_ratio * total_size)
+
     train_sampler = SubsetRandomSampler(index_list[:train_size])
     valid_sampler = SubsetRandomSampler(index_list[train_size:train_size + valid_size])
     test_sampler = SubsetRandomSampler(index_list[-test_size:])
@@ -36,12 +32,10 @@ def train_val_test_split(dataset, batch_size=64,
 
 
 def mae_metric(prediction, target):
-
     mae = torch.mean(torch.abs(prediction - target))
     return mae
 
 def class_metric(prediction, target):
-
     probability = nn.functional.softmax(prediction, dim=1)
     probability = probability.cpu().detach().numpy()
     target = target.detach().numpy()
@@ -69,7 +63,6 @@ class AverageMeter(object):
 
 
 def save_checkpoint(state, is_best, transfer=False, filename='checkpoint.pth.tar'):
-
     file = 'weights/' + filename
     torch.save(state, file)
     if is_best or transfer:
@@ -131,7 +124,6 @@ class EarlyStopping:
         self.trace_func = trace_func
 
     def __call__(self, val_loss, model):
-
         score = -val_loss
 
         if self.best_score is None:

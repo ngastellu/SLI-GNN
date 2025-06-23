@@ -75,11 +75,11 @@ class Dynamic_Atom_Embedding(torch.nn.Module):
 
 class Net(torch.nn.Module):
 
-    def __init__(self, orig_bond_fea_len=51, nbr_fea_len=128, atom_fea_len=64, n_conv=3, h_fea_len=128, l1=1,
-                 l2=1, classification=False, n_classes=2, attention=False, dynamic_attention=False, n_heads=1,
-                 max_num_nbr=12, pooling='mean', p=0, properties_list=None, atom_ref=None):
+    def __init__(self, target=None, orig_bond_fea_len=51, nbr_fea_len=128, atom_fea_len=64, n_conv=3, h_fea_len=128, l1=1,
+                 l2=1, attention=False, dynamic_attention=False, n_heads=1,
+                 max_num_nbr=12, pooling='mean', p=0, properties_list=None, atom_ref=None, nb_mol_props=5):
         super(Net, self).__init__()
-        self.classification = classification
+        self.target = target 
         self.pooling = pooling
         self.bn = nn.BatchNorm1d(atom_fea_len)
         self.atom_embedding = Dynamic_Atom_Embedding(atom_fea_len, properties_list=properties_list)
@@ -121,10 +121,12 @@ class Net(torch.nn.Module):
 
         if self.p > 0:
             self.dropout = nn.Dropout(p=p)
-        if self.classification:
-            self.fc_out = nn.Linear(h_fea_len, n_classes)
-        else:
+        
+        # change format of output depending on whether the Net is predicting a single molecular property, or all of them at once
+        if self.target:
             self.fc_out = nn.Linear(h_fea_len, 1)
+        else:
+            self.fc_out = nn.Linear(h_fea_len, nb_mol_props)
 
     def forward(self, data):
         x, edge_index, edge_weight, y = data.x, data.edge_index, data.edge_attr, data.y

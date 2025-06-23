@@ -20,11 +20,7 @@ def my_parser():
     parser.add_argument("--arg-file", type=argparse.FileType('r'), help="File containing command-line arguments")
 
     # Rest of the arguments (will be read from args file specified above)
-    # parser.add_argument('data_src', metavar='PATH', help='data source: data/dataset/data_src')
-    # parser.add_argument('filename', metavar='F', help='csv filename(dataset/targets/filename.csv)')
-    parser.add_argument('--task', choices=['regression', 'classification'],
-                        default='regression',
-                        help='complete a regression or ''classification task (default: regression)')
+    # *** Training run args ***
     parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                         help='number of data loading workers (default: 0)')
     parser.add_argument('--epochs', default=100, type=int, metavar='N',
@@ -46,23 +42,17 @@ def my_parser():
                         metavar='N', help='print space (default: 1)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
-    train_group = parser.add_mutually_exclusive_group()
-    train_group.add_argument('--train-ratio', default=0.6, type=float, metavar='N',
+
+    parser.add_argument('--train-ratio', default=0.6, type=float, metavar='N',
                             help='number of training data to be loaded (default 0.6)')
-    train_group.add_argument('--train-size', default=None, type=int, metavar='N',
-                            help='number of training data to be loaded (default none)')
-    valid_group = parser.add_mutually_exclusive_group()
-    valid_group.add_argument('--valid-ratio', default=0.2, type=float, metavar='N',
+    
+    parser.add_argument('--valid-ratio', default=0.2, type=float, metavar='N',
                             help='percentage of validation data to be loaded (default '
                                 '0.2)')
-    valid_group.add_argument('--valid-size', default=None, type=int, metavar='N',
-                            help='number of validation data to be loaded (default '
-                                '1000)')
-    test_group = parser.add_mutually_exclusive_group()
-    test_group.add_argument('--test-ratio', default=0.2, type=float, metavar='N',
+    parser.add_argument('--test-ratio', default=0.2, type=float, metavar='N',
                             help='percentage of test data to be loaded (default 0.2)')
-    test_group.add_argument('--test-size', default=None, type=int, metavar='N',
-                            help='number of test data to be loaded (default 1000)')
+    
+    # *** Model architecture args ***
     parser.add_argument('--atom-fea-len', default=256, type=int, metavar='N',
                         help='number of hidden atom features in conv layers')
     parser.add_argument('--h-fea-len', default=128, type=int, metavar='N',
@@ -92,6 +82,7 @@ def my_parser():
                         help='if early stopping or not (default: False)')
     parser.add_argument('--transfer', action='store_true', help='default: False')
 
+    # *** Molecular featurizer args ***
     parser.add_argument('--max-num-nbr', default=12, type=int, metavar='N',
                         help='max number of neighbors')
     parser.add_argument('--radius', '-r', default=5, type=int, metavar='N', help='Radius of sphere')
@@ -128,28 +119,22 @@ def my_parser():
 
 
 def main(args,best_loss):
-    # global args, best_loss
-    # path = "data/dataset/" + args.data_src
-    # targets_filename = "data/dataset/targets/" + args.filename + ".csv"
-    # molprop = 'HOMO'
-    # path = "./data/train.db" 
-    datapath = "D:/harvard-cep-dataset-main/Raw-data"
-    path = os.path.join(datapath,'xyzfiles')
-    is_db = path.split('.')[-1] == 'db' # check if reading input data from database
+    
+    db_path = Path("~/scratch/DFT_OSC.db").expanduser()
+    data_table_name = "mol_dft_data"
 
     print(args.arg_file)
     molprop = args.molecular_property
     # molprop = os.path.basename(args.arg_file).split('_')[0]
 
-    targets_filename = os.path.join(os.path.join(datapath,f'moldata_xyzexists_{molprop}.csv'))
 
-    logger.info('dataset path = {}'.format(path))
+    logger.info('dataset path = {}'.format(db_path))
     logger.info('neighbor search radius = {}'.format(args.radius))
     logger.info('max neighbor number = {}'.format(args.max_num_nbr))
 
     properties_list = args.properties[0]
-    dataset = GraphData(path=path, targets_filename=targets_filename, max_num_nbr=args.max_num_nbr, radius=args.radius,
-                        properties_list=properties_list, step=args.step,is_db=is_db)
+    dataset = GraphData(path=db_path, target=molprop, table_name=data_table_name, max_num_nbr=args.max_num_nbr, radius=args.radius,
+                        properties_list=properties_list, step=args.step)
 
     logger.info('dataset prepared, total {} materials'.format(len(dataset)))
     logger.info('start split dataset by {}:{}:{}'.format(args.train_ratio * 10,
@@ -167,13 +152,14 @@ def main(args,best_loss):
 
     orig_bond_fea_len = dataset.bond_feature_encoder.num_category
 
-    model = Net(orig_bond_fea_len=orig_bond_fea_len,
+    model = Net(target=molprop,
+                orig_bond_fea_len=orig_bond_fea_len,
                 atom_fea_len=args.atom_fea_len,
                 nbr_fea_len=args.nbr_fea_len,
                 n_conv=args.n_conv,
                 h_fea_len=args.h_fea_len,
                 l1=args.l1, l2=args.l2,
-                classification=True if args.task == 'classification' else False,
+                classification=False,
                 n_classes=args.n_classes,
                 attention=args.attention,
                 dynamic_attention=args.dynamic_attention,
@@ -186,23 +172,16 @@ def main(args,best_loss):
     model.to(device)
 
     logger.info('Normalizer initializing')
-    if args.task == 'classification':
-        normalizer = Normalizer(torch.zeros(2), model.atomref_layer)
-        normalizer.load_state_dict({'mean': 0., 'std': 1.})
+    if len(dataset) < 500:
+        logger.warning('Dataset has less than 500 data points. '
+                        'Lower accuracy is expected. ')
+        sample_target = [dataset[i].y for i in range(len(dataset))]
     else:
-        if len(dataset) < 500:
-            logger.warning('Dataset has less than 500 data points. '
-                           'Lower accuracy is expected. ')
-            sample_target = [dataset[i].y for i in range(len(dataset))]
-        else:
-            sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
-        normalizer = Normalizer(torch.tensor(sample_target), model.atomref_layer)
+        sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
+    normalizer = Normalizer(torch.tensor(sample_target), model.atomref_layer)
     logger.info('Model initializing')
 
-    if args.task == 'classification':
-        criterion = nn.CrossEntropyLoss()
-    else:
-        criterion = nn.MSELoss()
+    criterion = nn.MSELoss()
 
     optimizer = optim.Adam(model.parameters(), args.lr,
                            weight_decay=args.weight_decay)
@@ -283,35 +262,22 @@ def main(args,best_loss):
 
 def train(train_loader, model, criterion, optimizer, epoch, normalizer):
     running_loss = AverageMeter()
-    if args.task == 'regression':
-        mae_errors = AverageMeter()
-    else:
-        accuracies = AverageMeter()
+    mae_errors = AverageMeter()
+
     for batch_idx, data in enumerate(train_loader, 0):
-        if args.task == 'regression':
-            targets = data.y.unsqueeze(1)
-            targets_normed = normalizer.norm(targets)
-        else:
-            targets = data.y.long()
-            targets_normed = targets
+        targets = data.y.unsqueeze(1)
+        targets_normed = normalizer.norm(targets)
         data, targets_normed = data.to(device), targets_normed.to(device)
         outputs = model(data)
         loss = criterion(outputs, targets_normed)
 
         running_loss.update(loss.item(), targets.size(0))
 
-        if args.task == 'regression':
-            mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
-            mae_errors.update(mae, targets.size(0))
-            if batch_idx % args.print_space == 0:
-                logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
-                    epoch + 1, batch_idx + 1, running_loss.avg, mae_errors.avg))
-        else:
-            accuracy = class_metric(outputs, targets)
-            accuracies.update(accuracy, targets.size(0))
-            if batch_idx % args.print_space == 0:
-                logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, accuracy: %.3f' % (
-                    epoch + 1, batch_idx + 1, running_loss.avg, accuracies.avg))
+        mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
+        mae_errors.update(mae, targets.size(0))
+        if batch_idx % args.print_space == 0:
+            logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
+                epoch + 1, batch_idx + 1, running_loss.avg, mae_errors.avg))
 
         optimizer.zero_grad()
         loss.backward()
@@ -321,36 +287,23 @@ def train(train_loader, model, criterion, optimizer, epoch, normalizer):
 
 def validate(valid_loader, model, criterion, epoch, normalizer):
     running_loss = AverageMeter()
-    if args.task == 'regression':
-        mae_errors = AverageMeter()
-    else:
-        accuracies = AverageMeter()
+    mae_errors = AverageMeter()
+    
     for batch_idx, data in enumerate(valid_loader, 0):
         with torch.no_grad():
-            if args.task == 'regression':
-                targets = data.y.unsqueeze(1)
-                targets_normed = normalizer.norm(targets)
-            else:
-                targets = data.y.long()
-                targets_normed = targets
+            targets = data.y.unsqueeze(1)
+            targets_normed = normalizer.norm(targets)
             data, targets_normed = data.to(device), targets_normed.to(device)
 
             outputs = model(data)
             loss = criterion(outputs, targets_normed)
             running_loss.update(loss.item(), targets.size(0))
 
-            if args.task == 'regression':
-                mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
-                mae_errors.update(mae, targets.size(0))
-                if batch_idx % args.print_space == 0:
-                    logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
-                        epoch + 1, batch_idx + 1, running_loss.avg, mae_errors.avg))
-            else:
-                accuracy = class_metric(outputs, targets)
-                accuracies.update(accuracy, targets.size(0))
-                if batch_idx % args.print_space == 0:
-                    logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, accuracy: %.3f' % (
-                        epoch + 1, batch_idx + 1, running_loss.avg, accuracies.avg))
+            mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
+            mae_errors.update(mae, targets.size(0))
+            if batch_idx % args.print_space == 0:
+                logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
+                    epoch + 1, batch_idx + 1, running_loss.avg, mae_errors.avg))
 
     return running_loss.avg
 
@@ -359,22 +312,13 @@ def test(test_loader, model, criterion, normalizer, path="test"):
     test_material_ids = []
     test_targets = []
     test_preds = []
-    if args.task == 'classification':
-        probabilities = []
 
     running_loss = AverageMeter()
-    if args.task == 'regression':
-        mae_errors = AverageMeter()
-    else:
-        accuracies = AverageMeter()
+    mae_errors = AverageMeter()
     for batch_idx, data in enumerate(test_loader, 0):
         with torch.no_grad():
-            if args.task == 'regression':
-                targets = data.y.unsqueeze(1)
-                targets_normed = normalizer.norm(targets)
-            else:
-                targets = data.y.long()
-                targets_normed = targets
+            targets = data.y.unsqueeze(1)
+            targets_normed = normalizer.norm(targets)
             data, targets_normed = data.to(device), targets_normed.to(device)
 
             outputs = model(data)
@@ -385,54 +329,24 @@ def test(test_loader, model, criterion, normalizer, path="test"):
             test_target = targets
 
             test_material_ids += material_id
-            if args.task == 'regression':
-                test_pred = normalizer.denorm(outputs.data.cpu())
-                test_preds += test_pred.view(-1).tolist()
-                test_targets += test_target.view(-1).tolist()
-            else:
-                probability = nn.functional.softmax(outputs, dim=1)
-                probability = probability.tolist()
+            test_pred = normalizer.denorm(outputs.data.cpu())
+            test_preds += test_pred.view(-1).tolist()
+            test_targets += test_target.view(-1).tolist()
 
-                prediction = outputs.cpu().detach().numpy()
-                test_pred = np.argmax(prediction, axis=1)
-                test_preds += test_pred.tolist()
+            mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
+            mae_errors.update(mae, targets.size(0))
+            if path == 'test' and batch_idx % args.print_space == 0:
+                logger.info('batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
+                    batch_idx + 1, running_loss.avg, mae_errors.avg))
 
-                test_targets += test_target.view(-1).tolist()
-                probabilities += probability
+    with open('results/' + path + '_results.csv', 'w') as f:
+        writer = csv.writer(f)
+        for material_id, pred, y in zip(test_material_ids, test_preds, test_targets):
+            writer.writerow((material_id, pred, y))
 
-            if args.task == 'regression':
-                mae = mae_metric(normalizer.denorm(outputs.data.cpu()), targets)
-                mae_errors.update(mae, targets.size(0))
-                if path == 'test' and batch_idx % args.print_space == 0:
-                    logger.info('batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
-                        batch_idx + 1, running_loss.avg, mae_errors.avg))
-            else:
-                accuracy = class_metric(outputs, targets)
-                accuracies.update(accuracy, targets.size(0))
-                if path == 'test' and batch_idx % args.print_space == 0:
-                    logger.info('batch_idx: %2d, loss: %.3f, accuracy: %.3f' % (
-                        batch_idx + 1, running_loss.avg, accuracies.avg))
-
-    if args.task == 'regression':
-        with open('results/regression/' + path + '_results.csv', 'w') as f:
-            writer = csv.writer(f)
-            for material_id, pred, target in zip(test_material_ids, test_preds, test_targets):
-                writer.writerow((material_id, pred, target))
-
-        df = pd.read_csv('results/regression/' + path + '_results.csv',
-                         header=None, names=['Material_ID', 'Prediction', 'Target'])
-        df.to_csv('results/regression/' + path + '_results.csv', index=False)
-    else:
-        with open('results/classification/' + path + '_results.csv', 'w') as f:
-            writer = csv.writer(f)
-            for material_id, pred, target, probability in zip(test_material_ids, test_preds, test_targets,
-                                                              probabilities):
-                writer.writerow((material_id, pred, target, probability))
-
-        df = pd.read_csv('results/classification/' + path + '_results.csv',
-                         header=None,
-                         names=['Material_ID', 'Prediction', 'Target', 'Probabilities'])
-        df.to_csv('results/classification/' + path + '_results.csv', index=False)
+    df = pd.read_csv('results/regression/' + path + '_results.csv',
+                        header=None, names=['Material_ID', 'Prediction', 'Target'])
+    df.to_csv('results/regression/' + path + '_results.csv', index=False)
 
     return running_loss.avg
 

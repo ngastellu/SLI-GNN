@@ -1,3 +1,5 @@
+from pathlib import Path
+import sqlite3
 import os
 import csv
 import random
@@ -14,49 +16,66 @@ from ase.db import connect
 from torch_geometric.data import Data
 from utils.utils import *
 
+
+def read_molfile(molfile):
+    symbols = []
+    pos = []
+    with open(molfile) as fo:
+        # skip first 2 lines
+        fo.readline()
+        fo.readline()
+        for line in fo:
+            if line[0] == '$':
+                break
+            split_line = line.strip().split()
+            symbols.append(split_line[0])
+            pos.append([float(coord) for coord in split_line[1:4]])
+        
+    pos = np.array(pos)
+    return IMolecule(symbols, pos)
+    
+
+
+
+
 class DataReader:
 
-    def __init__(self, path, targets_filename, random_seed=123,is_db=False):
-        self.path = path
-        print(f'Looking for coord files in path: ', path)
+    def __init__(self, path, target, table_name='mol_dft_data'):
+        self.path = Path(path)
+        self.table_name = table_name
+        self.target = target
         # print(os.listdir(path))
-        assert os.path.exists(path), f'path {path} does not exist!'
-        id_prop_file = os.path.join(targets_filename)
+        assert path.exists(), f'path {str(path)} does not exist!'
 
-        assert os.path.exists(id_prop_file), targets_filename+' does not exist!'
-        with open(id_prop_file) as f:
-            reader = csv.reader(f)
-            next(reader) # skip headers
-            self.id_prop_data = [row for row in reader]
-            # print(self.id_prop_data)
-        
-        material_id, *_ = self.id_prop_data[0]
-        self.suffix = None
-        if is_db:
-            self.suffix = '.db'
-            self.db = connect(path)
+        print(f'Reading from database in path: ', path)
+
+        # Connect to database
+        self.db_con = sqlite3.connect(path)
+        self.db_cur = self.db_con.cursor()
+
+        # store result so that we only need perform this query only once
+        query = self.db_cur.execute(f"SELECT MAX(id) FROM {self.table_name};")
+        self.ndata = query.fetchone()[0]
+
+        if target is None:
+            self.get_id = self._get_id_all_props
         else:
-            print(material_id)
-            for suffix in ['.cif', '.xyz', '.mol', '.pdb', '.sdf']:
-                if os.path.exists(os.path.join(self.path, material_id + suffix)):
-                    self.suffix = suffix
-                    break
-            assert self.suffix is not None, 'file format does not support!'
-        random.seed(random_seed)
-        random.shuffle(self.id_prop_data)
+            self.get_id = self._get_id_single_prop
 
-        self.id_structure_map = {}
-
-    def get_structure_by_id(self, material_id):
-        structure = None
-        if self.suffix == '.cif':
-            structure = Structure.from_file(os.path.join(self.path, material_id + self.suffix))
-        elif self.suffix == '.mol' or self.suffix == '.xyz' or self.suffix == '.pdb' or self.suffix == '.sdf':
-            structure = IMolecule.from_file(os.path.join(self.path, material_id + self.suffix))
-        elif self.suffix == '.db':
-            structure = AseAtomsAdaptor.get_molecule(self.db.get_atoms(id=material_id)) # in the db case, `material_id` is the `id` column of the db
-        return structure
-
+    def _get_id_single_prop(self, material_id):
+        query = self.db_cur.execute(f"SELECT mol_name, {self.target} FROM {self.table_name} WHERE id={material_id};")
+        mol_name, y = query.fetchone()
+        structure = read_molfile(mol_name)
+        return structure, y
+    
+    def _get_id_all_props(self, material_id):
+        query = self.cur.execute(f"SELECT * FROM {self.table_name} WHERE id={material_id};")
+        out = query.fetchone()
+        mol_name = out[1] #first element of y is the ID; don;'t need it
+        structure = read_molfile(mol_name)
+        y = np.array(out[2:])
+        return structure, y 
+    
 
 class AtomFeatureEncoder(object):
 
@@ -143,7 +162,7 @@ class BondFeatureEncoder(object):
         all_dst_nodes = edges_idx.view(-1).unsqueeze(0)
         return torch.cat((all_src_nodes, all_dst_nodes), dim=0)
 
-    def get_bond_features(self, material_id, all_nbrs):
+    def get_bond_features(self, all_nbrs):
         edges_idx, bond_fea = [], []
         for nbr in all_nbrs:
             if len(nbr) < self.max_num_nbr:
@@ -185,30 +204,30 @@ class AtomBondFactory(object):
 
 class GraphData(Dataset):
 
-    def __init__(self, path, targets_filename, max_num_nbr=12, radius=5, dmin=0, step=0.1,
-                 random_seed=123, properties_list=None,is_db=False):
-        self.data_reader = DataReader(path=path, targets_filename=targets_filename, random_seed=random_seed,is_db=is_db)
+    def __init__(self, path, target, table_name, max_num_nbr=12, radius=5, dmin=0, step=0.1,
+                 random_seed=123, properties_list=None):
+        self.data_reader = DataReader(path=path, target=target, table_name=table_name, random_seed=random_seed)
         self.atom_bond_factory = AtomBondFactory(radius, self.data_reader.suffix)
         self.atom_feature_encoder = AtomFeatureEncoder(properties_list=properties_list)
         self.bond_feature_encoder = BondFeatureEncoder(max_num_nbr=max_num_nbr,
                                                        radius=radius, dmin=dmin, step=step)
 
     def __len__(self):
-        return len(self.data_reader.id_prop_data)
+        return len(self.data_reader.ndata)
 
     def __getitem__(self, idx):
-        material_id, target = self.data_reader.id_prop_data[idx]
+        # material_id, target = self.data_reader.id_prop_data[idx]
+
         # prop_data = self.data_reader.id_prop_data[idx]
         # material_id = prop_data[0]
         # target = prop_data[1:]
-        structure = self.data_reader.get_structure_by_id(material_id)
-
+        structure, target = self.data_reader.get_id(idx)
 
         atoms = self.atom_bond_factory.get_atoms(structure)
         all_nbrs = self.atom_bond_factory.get_edges(structure)
 
         atoms_fea = self.atom_feature_encoder.get_atoms_features(atoms)
-        bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(material_id, all_nbrs)
+        bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(all_nbrs)
 
         target = torch.Tensor([float(target)])
         # target = torch.Tensor([float(t) for t in target])
@@ -216,5 +235,5 @@ class GraphData(Dataset):
         num_atoms = atoms_fea.shape[0]
 
         material_graph = Data(x=atoms_fea, edge_index=edges_idx, edge_attr=bond_fea, y=target,
-                              material_id=material_id, num_atoms=num_atoms)
+                              material_id=idx, num_atoms=num_atoms)
         return material_graph
