@@ -17,7 +17,7 @@ def my_parser():
     parser = argparse.ArgumentParser(description='SLI-GNN')
 
     # Add an argument for specifying a file with arguments
-    parser.add_argument("--arg-file", type=argparse.FileType('r'), help="File containing command-line arguments")
+    parser.add_argument("--arg-file", type=argparse.FileType('r'), default=None, help="File containing command-line arguments")
 
     # Rest of the arguments (will be read from args file specified above)
     # *** Training run args ***
@@ -104,6 +104,8 @@ def my_parser():
 
         # Parse again with the file arguments included
         args = parser.parse_args(file_args)
+    else:
+        args = args0
     
         # args.arg_file = args0.arg_file # add arg_file argument to the list of newly parsed args
 
@@ -152,7 +154,7 @@ def main(args,best_loss):
 
     orig_bond_fea_len = dataset.bond_feature_encoder.num_category
 
-    model = Net(target=molprop,
+    model = Net(targete=molprop,
                 orig_bond_fea_len=orig_bond_fea_len,
                 atom_fea_len=args.atom_fea_len,
                 nbr_fea_len=args.nbr_fea_len,

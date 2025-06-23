@@ -1,3 +1,4 @@
+import json
 import shutil
 import numpy as np
 import torch
@@ -149,3 +150,17 @@ class EarlyStopping:
 
 def get_full_dims():
     return np.array([100, 18, 9, 4, 10, 10, 10, 10, 10])
+
+
+def save_args(configs):
+    """Saves run arguments to JSON file to keep track of experimens/ensure reproducibility."""
+    # outdir = Path(configs.molecular_property)
+    # outdir.mkdir(exist_ok=True)
+    # json_file = outdir / f'{run_type}_configs.json'
+    json_file = f'{configs.molecular_property}_training_configs.json'
+    print(f'Saving args to {json_file}...',end = ' ', flush=True)
+    args_dict = vars(configs)
+
+    with open(json_file, 'w') as fo:
+        json.dump(args_dict, fo, indent=4)
+    print('Done!', flush=True)
