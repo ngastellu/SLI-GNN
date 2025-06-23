@@ -1,18 +1,11 @@
 from pathlib import Path
 import sqlite3
-import os
-import csv
-import random
-import warnings
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from mendeleev import element
-from pymatgen.core.structure import Structure, IMolecule
-from pymatgen.core.periodic_table import Element
-from pymatgen.io.ase import AseAtomsAdaptor
-from ase.db import connect
+from pymatgen.core.structure import IMolecule
 from torch_geometric.data import Data
 from utils.utils import *
 
@@ -34,8 +27,6 @@ def read_molfile(molfile):
     pos = np.array(pos)
     return IMolecule(symbols, pos)
     
-
-
 
 
 class DataReader:
