@@ -13,7 +13,8 @@ def train_val_test_split(dataset, batch_size=64,
                          test_ratio=0.2, num_workers=1,seed=64):
     total_size = len(dataset)
     rng = np.random.default_rng(seed)
-    index_list = rng.shuffle(np.arange(1,total_size+1))
+    index_list = np.arange(1,total_size+1)
+    rng.shuffle(index_list)
 
 
     ratio_sum = train_ratio + valid_ratio + test_ratio

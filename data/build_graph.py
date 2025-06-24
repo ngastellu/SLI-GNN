@@ -174,8 +174,7 @@ class BondFeatureEncoder(object):
 
 class AtomBondFactory(object):
 
-    def __init__(self, radius, suffix):
-        self.suffix = suffix
+    def __init__(self, radius):
         self.radius = radius
 
     def get_atoms(self, structure):
@@ -184,27 +183,23 @@ class AtomBondFactory(object):
 
     def get_edges(self, structure):
         all_nbrs = []
-        if self.suffix == '.cif':
-            all_nbrs = structure.get_all_neighbors(self.radius, include_index=True)
-        elif self.suffix == '.mol' or self.suffix == '.xyz' or self.suffix == '.pdb' or self.suffix == '.sdf' or self.suffix == '.db':
-            for atom in structure:
-                nbrs = structure.get_neighbors(atom, self.radius)
-                all_nbrs.append(nbrs)
+        for atom in structure:
+            nbrs = structure.get_neighbors(atom, self.radius)
+            all_nbrs.append(nbrs)
         return all_nbrs
 
 
 class GraphData(Dataset):
 
-    def __init__(self, path, target, table_name, max_num_nbr=12, radius=5, dmin=0, step=0.1,
-                 random_seed=123, properties_list=None):
-        self.data_reader = DataReader(path=path, target=target, table_name=table_name, random_seed=random_seed)
-        self.atom_bond_factory = AtomBondFactory(radius, self.data_reader.suffix)
+    def __init__(self, path, target, table_name, max_num_nbr=12, radius=5, dmin=0, step=0.1, properties_list=None):
+        self.data_reader = DataReader(path=path, target=target, table_name=table_name)
+        self.atom_bond_factory = AtomBondFactory(radius)
         self.atom_feature_encoder = AtomFeatureEncoder(properties_list=properties_list)
         self.bond_feature_encoder = BondFeatureEncoder(max_num_nbr=max_num_nbr,
                                                        radius=radius, dmin=dmin, step=step)
 
     def __len__(self):
-        return len(self.data_reader.ndata)
+        return self.data_reader.ndata
 
     def __getitem__(self, idx):
         # material_id, target = self.data_reader.id_prop_data[idx]

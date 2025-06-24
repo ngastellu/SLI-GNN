@@ -1,5 +1,5 @@
 import argparse
-import sys
+import csv
 import torch.optim as optim
 from random import sample
 from torch.optim.lr_scheduler import MultiStepLR
@@ -7,6 +7,7 @@ from data.build_graph import *
 from models.model import Net
 import warnings
 from utils.logger import logger
+from utils.utils import save_args
 import shlex
 import os
 warnings.filterwarnings("ignore", category=Warning)
@@ -65,8 +66,6 @@ def my_parser():
                         help='number of hidden layers before pooling')
     parser.add_argument('--l2', default=1, type=int, metavar='N',
                         help='number of hidden layers after pooling')
-    parser.add_argument('--n-classes', default=2, type=int, metavar='N',
-                        help='number of classes')
     parser.add_argument('--patience', default=7, type=int, metavar='N',
                         help='How long to wait after last time validation loss improved.(default=7)')
     attention_group = parser.add_mutually_exclusive_group()
@@ -147,22 +146,17 @@ def main(args,best_loss):
                              train_ratio=args.train_ratio,
                              valid_ratio=args.valid_ratio,
                              test_ratio=args.test_ratio,
-                             num_workers=args.workers,
-                             train_size=args.train_size,
-                             valid_size=args.valid_size,
-                             test_size=args.test_size)
+                             num_workers=args.workers)
 
     orig_bond_fea_len = dataset.bond_feature_encoder.num_category
 
-    model = Net(targete=molprop,
+    model = Net(target=molprop,
                 orig_bond_fea_len=orig_bond_fea_len,
                 atom_fea_len=args.atom_fea_len,
                 nbr_fea_len=args.nbr_fea_len,
                 n_conv=args.n_conv,
                 h_fea_len=args.h_fea_len,
                 l1=args.l1, l2=args.l2,
-                classification=False,
-                n_classes=args.n_classes,
                 attention=args.attention,
                 dynamic_attention=args.dynamic_attention,
                 n_heads=args.n_heads,
@@ -251,11 +245,11 @@ def main(args,best_loss):
     test(train_loader, model, criterion, normalizer, path="train")
     test(valid_loader, model, criterion, normalizer, path="valid")
 
-    with open('results/loss.csv', 'w') as f:
+    with open(f'results/{molprop}_loss.csv', 'w') as f:
         writer = csv.writer(f)
         for epoch, (train_loss, valid_loss) in enumerate(zip(train_losses, valid_losses)):
             writer.writerow((epoch, train_loss, valid_loss))
-    df = pd.read_csv('results/loss.csv',
+    df = pd.read_csv(f'results/{molprop}_loss.csv',
                      header=None,
                      names=['EPOCH', 'Train_Loss', 'Valid_Loss'])
     df.to_csv('results/loss.csv', index=False)
@@ -346,9 +340,9 @@ def test(test_loader, model, criterion, normalizer, path="test"):
         for material_id, pred, y in zip(test_material_ids, test_preds, test_targets):
             writer.writerow((material_id, pred, y))
 
-    df = pd.read_csv('results/regression/' + path + '_results.csv',
+    df = pd.read_csv('results/' + path + '_results.csv',
                         header=None, names=['Material_ID', 'Prediction', 'Target'])
-    df.to_csv('results/regression/' + path + '_results.csv', index=False)
+    df.to_csv('results/' + path + '_results.csv', index=False)
 
     return running_loss.avg
 
@@ -358,4 +352,5 @@ if __name__ == '__main__':
     best_loss = 1e10
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args = my_parser()
+    save_args(args)
     main(args,best_loss)
