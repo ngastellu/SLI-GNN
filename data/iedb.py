@@ -3,7 +3,7 @@
 import sqlite3
 from pathlib import Path
 
-db_path = Path("~/scratch/DFT_OSC.db")
+db_path = Path("~/scratch/DFT_OSC_emna.db")
 con = sqlite3.connect(db_path.expanduser())
 cur = con.cursor()
 
@@ -16,3 +16,8 @@ cur.execute("""CREATE TABLE mol_dft_data (
             dlumo REAL,
             e31 REAL
             ) STRICT;""")
+
+cur.execute("""CREATE TABLE added_folders (
+            id INTEGER PRIMARY KEY,
+            folder_name TEXT) ;""")
+

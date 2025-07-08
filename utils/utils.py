@@ -1,3 +1,5 @@
+import random
+import sqlite3
 import json
 import shutil
 import numpy as np
@@ -6,11 +8,12 @@ from torch import nn
 from torch.utils.data import SubsetRandomSampler
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import accuracy_score
+from data.build_graph import GraphIterableDataset
 
 
-def train_val_test_split(dataset, batch_size=64,
+def train_val_test_split(dataset, batch_size=256,
                          train_ratio=0.6, valid_ratio=0.2,
-                         test_ratio=0.2, num_workers=1,seed=64):
+                         test_ratio=0.2, num_workers=0,seed=64):
     total_size = len(dataset)
     rng = np.random.default_rng(seed)
     index_list = np.arange(1,total_size+1)
@@ -24,13 +27,60 @@ def train_val_test_split(dataset, batch_size=64,
     valid_size = int(valid_ratio * total_size)
     test_size = int(test_ratio * total_size)
 
+  
     train_sampler = SubsetRandomSampler(index_list[:train_size])
     valid_sampler = SubsetRandomSampler(index_list[train_size:train_size + valid_size])
     test_sampler = SubsetRandomSampler(index_list[-test_size:])
+
     train_loader = DataLoader(dataset=dataset, sampler=train_sampler, batch_size=batch_size, num_workers=num_workers)
     valid_loader = DataLoader(dataset=dataset, sampler=valid_sampler, batch_size=batch_size, num_workers=num_workers)
     test_loader = DataLoader(dataset=dataset, sampler=test_sampler, batch_size=batch_size, num_workers=num_workers)
     return train_loader, valid_loader, test_loader
+
+
+def get_molids(db_cur, table_name):
+    return  [t[0] for t in db_cur.execute(f"SELECT(id) FROM {table_name};").fetchall()]
+
+def init_iterable_datasets(db_path, table_name, configs):
+    seed = configs.seed
+    train_ratio = configs.train_ratio
+    valid_ratio = configs.valid_ratio
+    test_ratio = configs.test_ratio
+
+    assert train_ratio + valid_ratio + test_ratio == 1.0
+
+    con = sqlite3(db_path)
+    cur = con.cursor()
+    all_ids = get_molids(cur, table_name)
+    N = len(all_ids)
+
+    random.seed(64)
+    random.shuffle(all_ids)
+
+    ntrain = int(N * train_ratio)
+    train_ids = all_ids[:ntrain]
+    train_dataset = GraphIterableDataset(path=db_path, target=configs.molecular_property, table_name=table_name, ids=train_ids, max_num_nbr=configs.max_num_nbr, radius=configs.radius, properties_list=configs.properties[0], step=configs.step, batch_size=configs.batch_size)
+
+    nvalid = int(N * valid_ratio)
+    if nvalid > 0:
+        valid_ids = all_ids[ntrain:ntrain+nvalid]
+        valid_dataset = GraphIterableDataset(path=db_path, target=configs.molecular_property, table_name=table_name, ids=valid_ids, max_num_nbr=configs.max_num_nbr, radius=configs.radius, properties_list=configs.properties[0], step=configs.step, batch_size=configs.batch_size)
+    else:
+        valid_dataset = None
+
+
+    ntest = N - ntrain - nvalid
+    if ntest > 0:
+        test_ids = all_ids[-ntest:]
+        test_dataset = GraphIterableDataset(path=db_path, target=configs.molecular_property, table_name=table_name, ids=test_ids, max_num_nbr=configs.max_num_nbr, radius=configs.radius, properties_list=configs.properties[0], step=configs.step, batch_size=configs.batch_size)
+    else:
+        test_dataset = None
+
+    return train_dataset, valid_dataset, test_dataset
+
+def iterable_dataloader(dataset,num_workers):
+    return DataLoader(dataset, batch_size=None, batch_sampler=None, num_workers=num_workers)
+
 
 
 def mae_metric(prediction, target):
@@ -74,6 +124,7 @@ class Normalizer(object):
 
     def __init__(self, tensor, atom_ref=None):
         """tensor is taken as a sample to calculate the mean and std"""
+        # TODO: Generalize means here in the multi-target case.
         self.mean = torch.mean(tensor)
         self.std = torch.std(tensor)
         self.atom_ref = atom_ref

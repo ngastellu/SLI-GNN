@@ -9,20 +9,25 @@ import re
 # global vars (don't touch)
 
 HA_TO_EV = 27.2114
-DB_PATH = Path("~/scratch/DFT_OSC.db")
+DB_PATH = Path("~/scratch/DFT_OSC_emna.db")
 
+def connect_to_db(db_path=DB_PATH):
+    if not isinstance(db_path, Path): db_path = Path(db_path)
+    con = sqlite3.connect(db_path.expanduser())
+    cur = con.cursor()
+    return con, cur
 
-def update_db(datadir, db_path=DB_PATH):
+def check_added_folders(cur):
+    return set([Path(f[0]) for f in cur.execute("SELECT folder_name FROM added_folders").fetchall()])
+
+def update_db(datadir, con, cur, added_folders):
     """Updates SQLite database at `db_path` using the contents of the Gaussian log files that folder `datadir` contains. 
     Recursively iterates over all of the along with all of the subfolders of `datadir`."""
     
-    if not isinstance(db_path, Path): db_path = Path(db_path)
     if not isinstance(datadir, Path): datadir = Path(datadir)
 
     print(f'********** Working on folder {str(datadir)} **********', flush=True)
 
-    con = sqlite3.connect(db_path.expanduser())
-    cur = con.cursor()
 
     if not any([f.suffix == '.log' for f in datadir.iterdir()]): # Look for Gaussiam output files
         # Recursion over subfolders of datadir
@@ -30,7 +35,10 @@ def update_db(datadir, db_path=DB_PATH):
             if str(d.name)[0] != str(datadir)[0]: 
                 print('Skipped!')
                 continue # skips all subfolders with different inital letter than `datadir`
-            update_db(d)
+            if d in added_folders:
+                print(f'Already added folder {d} to db! Skipping.')
+                continue
+            update_db(d, con, cur, added_folders)
     else:
         print('Found Gaussian log files!')
 
@@ -63,8 +71,10 @@ def update_db(datadir, db_path=DB_PATH):
         # Wrap up INSERT statement into a transaction and a call to `executemany` for greater efficiency
         con.execute("BEGIN TRANSACTION")
         cur.executemany("INSERT INTO mol_dft_data VALUES (?, ?, ?, ?, ?, ?, ?)", data)
+        cur.execute("INSERT INTO added_folders (folder_name) VALUES (?)", (str(datadir), ))
         con.commit()
-        print(f'Added {len(data)} rows to {db_path}')
+        print(f'Added {len(data)} rows to mol_dft_data table.')
+        print(f'Added {str(datadir)} to added_folders table.')
 
 
 def subdirs(d):
@@ -127,12 +137,11 @@ def extend_energies(energies, line):
 
 
 
-    
-
 
 # -------------------- MAIN --------------------
 
 
 outdir = sys.argv[1]
-update_db(outdir)
-
+con, cur = connect_to_db()
+added_folders = check_added_folders(cur)
+update_db(outdir, con, cur, added_folders)

@@ -1,13 +1,15 @@
 import argparse
+from time import perf_counter
 import csv
 import torch.optim as optim
 from random import sample
 from torch.optim.lr_scheduler import MultiStepLR
+import torch.nn as nn
 from data.build_graph import *
 from models.model import Net
 import warnings
 from utils.logger import logger
-from utils.utils import save_args
+from utils.utils import save_args, train_val_test_split, Normalizer, EarlyStopping, save_checkpoint, AverageMeter, mae_metric, init_iterable_datasets, iterable_dataloader
 import shlex
 import os
 warnings.filterwarnings("ignore", category=Warning)
@@ -22,10 +24,10 @@ def my_parser():
 
     # Rest of the arguments (will be read from args file specified above)
     # *** Training run args ***
-    parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=0, type=int, metavar='N',
                         help='number of data loading workers (default: 0)')
     parser.add_argument('--epochs', default=100, type=int, metavar='N',
-                        help='number of total epochs to run (default: 10)')
+                        help='number of total epochs to run (default: 100)')
     parser.add_argument('--pooling', choices=['mean', 'max', 'add'],
                         default='mean', help='global pooling layer (default: mean)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
@@ -54,6 +56,7 @@ def my_parser():
                             help='percentage of test data to be loaded (default 0.2)')
     
     # *** Model architecture args ***
+    parser.add_argument('--dataset-style', type=str, default='map-style', choices=['map-style', 'iterable-style']) #iterable style batches SQL queries; should be faster
     parser.add_argument('--atom-fea-len', default=256, type=int, metavar='N',
                         help='number of hidden atom features in conv layers')
     parser.add_argument('--h-fea-len', default=128, type=int, metavar='N',
@@ -134,21 +137,41 @@ def main(args,best_loss):
     logger.info('max neighbor number = {}'.format(args.max_num_nbr))
 
     properties_list = args.properties[0]
-    dataset = GraphData(path=db_path, target=molprop, table_name=data_table_name, max_num_nbr=args.max_num_nbr, radius=args.radius,
-                        properties_list=properties_list, step=args.step)
 
-    logger.info('dataset prepared, total {} materials'.format(len(dataset)))
-    logger.info('start split dataset by {}:{}:{}'.format(args.train_ratio * 10,
-                                                         args.valid_ratio * 10, args.test_ratio * 10))
-    train_loader, valid_loader, test_loader = \
-        train_val_test_split(dataset,
-                             batch_size=args.batch_size,
-                             train_ratio=args.train_ratio,
-                             valid_ratio=args.valid_ratio,
-                             test_ratio=args.test_ratio,
-                             num_workers=args.workers)
+    if args.dataset_style == 'map-style':
+        dataset = GraphData(path=db_path, target=molprop, table_name=data_table_name, max_num_nbr=args.max_num_nbr, radius=args.radius,
+                            properties_list=properties_list, step=args.step)
 
-    orig_bond_fea_len = dataset.bond_feature_encoder.num_category
+        logger.info('dataset prepared, total {} materials'.format(len(dataset))) 
+        logger.info('start split dataset by {}:{}:{}'.format(args.train_ratio * 10,
+                                                            args.valid_ratio * 10, args.test_ratio * 10))
+        train_loader, valid_loader, test_loader = \
+            train_val_test_split(dataset,
+                                batch_size=None,
+                                train_ratio=args.train_ratio,
+                                valid_ratio=args.valid_ratio,
+                                test_ratio=args.test_ratio,
+                                num_workers=args.workers)
+
+        orig_bond_fea_len = dataset.bond_feature_encoder.num_category
+    
+    else:
+        train_dataset, valid_dataset, test_dataset = init_iterable_datasets(db_path, data_table_name, args)
+        train_loader = iterable_dataloader(train_dataset, args.workers)
+        orig_bond_fea_len = train_dataset.bond_feature_encoder.num_category
+
+        if valid_dataset:
+            valid_loader = iterable_dataloader(valid_dataset, args.workers)
+        else:
+            valid_loader = None
+        
+        if test_dataset:
+            test_loader = iterable_dataloader(test_dataset, args.workers)
+        else:
+            test_loader = None
+
+
+        
 
     model = Net(target=molprop,
                 orig_bond_fea_len=orig_bond_fea_len,
@@ -168,12 +191,20 @@ def main(args,best_loss):
     model.to(device)
 
     logger.info('Normalizer initializing')
-    if len(dataset) < 500:
-        logger.warning('Dataset has less than 500 data points. '
-                        'Lower accuracy is expected. ')
-        sample_target = [dataset[i].y for i in range(len(dataset))]
+    if args.dataset_style == 'map-style':
+        if len(dataset) < 500:
+            logger.warning('Dataset has less than 500 data points. '
+                            'Lower accuracy is expected. ')
+            sample_target = [dataset[i].y for i in range(len(dataset))]
+        else:
+            sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
     else:
-        sample_target = [dataset[i].y for i in sample(range(len(dataset)), 500)]
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+        # TODO: generalize this to multi-target case
+        sample_target = [t[0] for t in cur.execute(f'SELECT {molprop} FROM {data_table_name};').fetchall()]
+
+
     normalizer = Normalizer(torch.tensor(sample_target), model.atomref_layer)
     logger.info('Model initializing')
 
@@ -186,6 +217,7 @@ def main(args,best_loss):
 
     train_losses = []
     valid_losses = []
+    epoch_times = []
 
     if args.resume:
         checkpoint_path = 'weights/' + args.resume
@@ -208,6 +240,7 @@ def main(args,best_loss):
     logger.info('start training, use {}'.format(device))
     transfer = args.transfer
     for epoch in range(args.start_epoch, args.epochs):
+        start = perf_counter()
         logger.info("----------Train Set----------")
         train_loss = train(train_loader, model, criterion, optimizer, epoch, normalizer)
         train_losses.append(train_loss)
@@ -217,17 +250,20 @@ def main(args,best_loss):
         valid_losses.append(valid_loss)
 
         scheduler.step()
+        end = perf_counter()
+        epoch_times.append(end - start)
 
         is_best = valid_loss < best_loss
         best_loss = min(valid_loss, best_loss)
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'state_dict': model.state_dict(),
-            'best_loss': best_loss,
-            'optimizer': optimizer.state_dict(),
-            'normalizer': normalizer.state_dict(),
-            'args': vars(args),
-        }, is_best, transfer=transfer,filename=f'{molprop}_checkpoint.pth.tar')
+        if epoch % 50 == 0:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'best_loss': best_loss,
+                'optimizer': optimizer.state_dict(),
+                'normalizer': normalizer.state_dict(),
+                'args': vars(args),
+            }, is_best, transfer=transfer,filename=f'{molprop}_checkpoint.pth.tar')
         transfer = False
 
         if args.early_stopping:
@@ -235,6 +271,7 @@ def main(args,best_loss):
             if early_stopping.early_stop:
                 logger.info("Early stopping")
                 break
+        
 
     logger.info("Test with the best model")
     best_checkpoint = torch.load(f'weights/model_best_{molprop}.pth.tar')
@@ -245,14 +282,14 @@ def main(args,best_loss):
     test(train_loader, model, criterion, normalizer, path="train")
     test(valid_loader, model, criterion, normalizer, path="valid")
 
-    with open(f'results/{molprop}_loss.csv', 'w') as f:
+    with open(f'results/{molprop}_batch_queries_log.csv', 'w') as f:
         writer = csv.writer(f)
-        for epoch, (train_loss, valid_loss) in enumerate(zip(train_losses, valid_losses)):
-            writer.writerow((epoch, train_loss, valid_loss))
-    df = pd.read_csv(f'results/{molprop}_loss.csv',
+        for epoch, (train_loss, valid_loss, dt) in enumerate(zip(train_losses, valid_losses, epoch_times)):
+            writer.writerow((epoch, train_loss, valid_loss, dt))
+    df = pd.read_csv(f'results/{molprop}_batch_queries_loss.csv',
                      header=None,
-                     names=['EPOCH', 'Train_Loss', 'Valid_Loss'])
-    df.to_csv('results/loss.csv', index=False)
+                     names=['EPOCH', 'Train_Loss', 'Valid_Loss', 'Time [s]'])
+    df.to_csv(f'results/{molprop}_batch_queries_loss.csv', index=False)
     logger.info('----------------training finished---------------------')
 
 
@@ -260,7 +297,8 @@ def train(train_loader, model, criterion, optimizer, epoch, normalizer):
     running_loss = AverageMeter()
     mae_errors = AverageMeter()
 
-    for batch_idx, data in enumerate(train_loader, 0):
+    batch_idx = 0
+    for data in train_loader:
         targets = data.y.unsqueeze(1)
         targets_normed = normalizer.norm(targets)
         data, targets_normed = data.to(device), targets_normed.to(device)
@@ -278,6 +316,8 @@ def train(train_loader, model, criterion, optimizer, epoch, normalizer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+    batch_idx += 1
+
     return running_loss.avg
 
 
@@ -285,7 +325,8 @@ def validate(valid_loader, model, criterion, epoch, normalizer):
     running_loss = AverageMeter()
     mae_errors = AverageMeter()
     
-    for batch_idx, data in enumerate(valid_loader, 0):
+    batch_idx =  0
+    for data in valid_loader:
         with torch.no_grad():
             targets = data.y.unsqueeze(1)
             targets_normed = normalizer.norm(targets)
@@ -300,6 +341,7 @@ def validate(valid_loader, model, criterion, epoch, normalizer):
             if batch_idx % args.print_space == 0:
                 logger.info('epoch: %2d, batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
                     epoch + 1, batch_idx + 1, running_loss.avg, mae_errors.avg))
+        batch_idx += 1
 
     return running_loss.avg
 
@@ -311,7 +353,8 @@ def test(test_loader, model, criterion, normalizer, path="test"):
 
     running_loss = AverageMeter()
     mae_errors = AverageMeter()
-    for batch_idx, data in enumerate(test_loader, 0):
+    batch_idx = 0
+    for data in test_loader:
         with torch.no_grad():
             targets = data.y.unsqueeze(1)
             targets_normed = normalizer.norm(targets)
@@ -334,6 +377,8 @@ def test(test_loader, model, criterion, normalizer, path="test"):
             if path == 'test' and batch_idx % args.print_space == 0:
                 logger.info('batch_idx: %2d, loss: %.3f, MAE: %.3f' % (
                     batch_idx + 1, running_loss.avg, mae_errors.avg))
+        batch_idx += 1
+        
 
     with open('results/' + path + '_results.csv', 'w') as f:
         writer = csv.writer(f)

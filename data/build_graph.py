@@ -1,16 +1,18 @@
 from pathlib import Path
+import random
 import sqlite3
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 from mendeleev import element
 from pymatgen.core.structure import IMolecule
-from torch_geometric.data import Data
-from utils.utils import *
+from torch_geometric.data import Data, Batch
 
 
 def read_molfile(molfile):
+    parent_folder = Path("~/scratch/ML_OSC/").expanduser()
+    molfile = parent_folder / molfile
     symbols = []
     pos = []
     with open(molfile) as fo:
@@ -26,7 +28,6 @@ def read_molfile(molfile):
         
     pos = np.array(pos)
     return IMolecule(symbols, pos)
-    
 
 
 class DataReader:
@@ -66,6 +67,25 @@ class DataReader:
         structure = read_molfile(mol_name)
         y = np.array(out[2:])
         return structure, y 
+
+    def _get_batch(self, ids):
+            # prepare (?, ?, …) placeholders
+            placeholders = ','.join('?' for _ in ids)
+            if self.target:
+                q = f"SELECT id, mol_name {','+self.target if self.target else ''} " \
+                    f"FROM {self.table_name} WHERE id IN ({placeholders})"
+            else:
+                q = f"SELECT * FROM {self.table_name} WHERE id IN ({placeholders})"
+            rows = self.db_cur.execute(q, ids).fetchall()
+            # rows is a list of tuples; turn it into a dict for fast lookup
+            lookup = {row[0]: row[1:] for row in rows}
+            # return in the same order as `ids`
+            out = []
+            for mid in ids:
+                mol_name, *yvals = lookup[mid]
+                y = yvals[0] if self.target else np.array(yvals)
+                out.append((mol_name, y))
+            return out
     
 
 class AtomFeatureEncoder(object):
@@ -223,3 +243,46 @@ class GraphData(Dataset):
         material_graph = Data(x=atoms_fea, edge_index=edges_idx, edge_attr=bond_fea, y=target,
                               material_id=idx, num_atoms=num_atoms)
         return material_graph
+
+
+class GraphIterableDataset(IterableDataset):
+    def __init__(self, path, target, table_name, ids, max_num_nbr=12, radius=5, dmin=0, step=0.1, properties_list=None,batch_size=256):
+        self.data_reader = DataReader(path=path, target=target, table_name=table_name)
+        self.atom_bond_factory = AtomBondFactory(radius)
+        self.atom_feature_encoder = AtomFeatureEncoder(properties_list=properties_list)
+        self.bond_feature_encoder = BondFeatureEncoder(max_num_nbr=max_num_nbr,
+                                                        radius=radius, dmin=dmin, step=step) 
+        self.batch_size = batch_size
+
+        self.ids = ids
+    
+    def __len__(self):
+        return len(self.ids)
+
+
+    def __iter__(self):
+        # chunk the list of ids
+        for i in range(0, len(self.ids), self.batch_size):
+            batch_ids = self.ids[i:i + self.batch_size]
+            molnames_targets = self.data_reader._get_batch(batch_ids)
+            data_list = []
+            for (mol_path, target), mid in zip(molnames_targets, batch_ids):
+                # same graph‐building logic as __getitem__
+                structure = read_molfile(mol_path)
+                atoms = self.atom_bond_factory.get_atoms(structure)
+                nbrs  = self.atom_bond_factory.get_edges(structure)
+                atoms_fea = self.atom_feature_encoder.get_atoms_features(atoms)
+                bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(nbrs)
+                data = Data(x=atoms_fea,
+                            edge_index=edges_idx,
+                            edge_attr=bond_fea,
+                            y=torch.Tensor([float(target)]),
+                            material_id=mid,
+                            num_atoms=atoms_fea.size(0))
+                data_list.append(data)
+                
+                # Sanity checks
+                assert isinstance(data, Data), f"Yielded object is not a PyG Data: {type(data)}"
+                assert hasattr(data, 'x') and hasattr(data, 'edge_index'), "Data object is malformed"
+
+                yield data_list
