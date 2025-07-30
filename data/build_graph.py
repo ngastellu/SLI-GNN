@@ -1,5 +1,5 @@
 from pathlib import Path
-import random
+from time import perf_counter
 import sqlite3
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset, IterableDataset
 from mendeleev import element
 from pymatgen.core.structure import IMolecule
-from torch_geometric.data import Data, Batch
+from torch_geometric.data import Data
 
 
 def read_molfile(molfile):
@@ -58,14 +58,14 @@ class DataReader:
         query = self.db_cur.execute(f"SELECT mol_name, {self.target} FROM {self.table_name} WHERE id={material_id};")
         mol_name, y = query.fetchone()
         structure = read_molfile(mol_name)
-        return structure, y
+        return structure, [y]
     
     def _get_id_all_props(self, material_id):
-        query = self.cur.execute(f"SELECT * FROM {self.table_name} WHERE id={material_id};")
+        query = self.db_cur.execute(f"SELECT * FROM {self.table_name} WHERE id={material_id};")
         out = query.fetchone()
         mol_name = out[1] #first element of y is the ID; don;'t need it
         structure = read_molfile(mol_name)
-        y = np.array(out[2:])
+        y = out[2:]
         return structure, y 
 
     def _get_batch(self, ids):
@@ -83,8 +83,9 @@ class DataReader:
             out = []
             for mid in ids:
                 mol_name, *yvals = lookup[mid]
-                y = yvals[0] if self.target else np.array(yvals)
-                out.append((mol_name, y))
+                mol = read_molfile(mol_name)
+                y = [yvals[0]] if self.target else yvals
+                out.append((mol, y))
             return out
     
 
@@ -217,31 +218,70 @@ class GraphData(Dataset):
         self.atom_feature_encoder = AtomFeatureEncoder(properties_list=properties_list)
         self.bond_feature_encoder = BondFeatureEncoder(max_num_nbr=max_num_nbr,
                                                        radius=radius, dmin=dmin, step=step)
+        self.benchmark_fo = open('graph_data_timing.txt', 'w')
+        fo = self.benchmark_fo
+        fo.write('# All times are in seconds\n')
+        fo.write('Index | DB fetch time | AtomBondFactory.get_atoms | AtomBondFactory.get_edges | AtomFeatureEncoder | BondFeatureEncoder | Data\n')
+        fo.flush()
+
 
     def __len__(self):
         return self.data_reader.ndata
 
     def __getitem__(self, idx):
+        print(f'\n\n***** GraphData {idx} *****')
         # material_id, target = self.data_reader.id_prop_data[idx]
 
         # prop_data = self.data_reader.id_prop_data[idx]
         # material_id = prop_data[0]
         # target = prop_data[1:]
+        read_start = perf_counter()
         structure, target = self.data_reader.get_id(idx)
+        read_end = perf_counter()
+        
+        read_time = read_end - read_start
+        print(f'Fetching from DB = {read_time} seconds',flush=True)
 
+        atoms_start = perf_counter()
         atoms = self.atom_bond_factory.get_atoms(structure)
+        atoms_end = perf_counter()
+        atoms_time = atoms_end - atoms_start
+        print(f'AtomBondFactory.get_atoms = {atoms_time} seconds',flush=True)
+        
+        
+        bonds_start = perf_counter()
         all_nbrs = self.atom_bond_factory.get_edges(structure)
+        bonds_end = perf_counter()
+        bonds_time = bonds_end - bonds_start
+        print(f'AtomBondFactory.get_edges = {bonds_time} seconds',flush=True)
 
+        afe_start = perf_counter()
         atoms_fea = self.atom_feature_encoder.get_atoms_features(atoms)
-        bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(all_nbrs)
+        afe_end = perf_counter()
+        afe_time = afe_end - afe_start
+        print(f'AtomFeatureEncoder = {afe_time} seconds',flush=True)
 
-        target = torch.Tensor([float(target)])
-        # target = torch.Tensor([float(t) for t in target])
+        bfe_start = perf_counter()
+        bond_fea, edges_idx = self.bond_feature_encoder.get_bond_features(all_nbrs)
+        bfe_end = perf_counter()
+        bfe_time = bfe_end - bfe_start
+        print(f'bondfeatureencoder = {bfe_time} seconds',flush=True)
+
+        target = torch.Tensor([float(t) for t in target])
 
         num_atoms = atoms_fea.shape[0]
 
+        dat_start = perf_counter()
         material_graph = Data(x=atoms_fea, edge_index=edges_idx, edge_attr=bond_fea, y=target,
                               material_id=idx, num_atoms=num_atoms)
+        dat_end = perf_counter()
+        dat_time = dat_end - dat_start
+        print(f'Building matl graph = {dat_time} seconds',flush=True)
+
+        self.benchmark_fo.write(f'{idx}\t{read_time}\t{atoms_time}\t{bonds_time}\{afe_time}\t{bfe_time}\t{dat_time}\n')
+        self.benchmark_fo.flush()
+
+
         return material_graph
 
 
@@ -265,10 +305,9 @@ class GraphIterableDataset(IterableDataset):
         for i in range(0, len(self.ids), self.batch_size):
             batch_ids = self.ids[i:i + self.batch_size]
             molnames_targets = self.data_reader._get_batch(batch_ids)
-            data_list = []
-            for (mol_path, target), mid in zip(molnames_targets, batch_ids):
+            data_list = [None] * self.batch_size
+            for (structure, target), mid, k in zip(molnames_targets, batch_ids, range(self.batch_size)):
                 # same graph‐building logic as __getitem__
-                structure = read_molfile(mol_path)
                 atoms = self.atom_bond_factory.get_atoms(structure)
                 nbrs  = self.atom_bond_factory.get_edges(structure)
                 atoms_fea = self.atom_feature_encoder.get_atoms_features(atoms)
@@ -276,13 +315,13 @@ class GraphIterableDataset(IterableDataset):
                 data = Data(x=atoms_fea,
                             edge_index=edges_idx,
                             edge_attr=bond_fea,
-                            y=torch.Tensor([float(target)]),
+                            y=torch.Tensor([float(t) for t in target]),
                             material_id=mid,
                             num_atoms=atoms_fea.size(0))
-                data_list.append(data)
+                data_list[k] = data
                 
                 # Sanity checks
                 assert isinstance(data, Data), f"Yielded object is not a PyG Data: {type(data)}"
                 assert hasattr(data, 'x') and hasattr(data, 'edge_index'), "Data object is malformed"
 
-                yield data_list
+            yield data_list
